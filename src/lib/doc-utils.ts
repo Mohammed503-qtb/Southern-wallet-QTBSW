@@ -1,6 +1,6 @@
 /**
  * أدوات معالجة الوثائق — محفظة الجنوب
- * تُستخدم في الخادم (استخراج الفهرس) والعميل (مولّد معرفات العناوين)
+ * تُستخدم في الخادم (استخراج الفهرس والإحصاءات) والعميل (مولّد معرفات العناوين)
  */
 
 export interface TocItem {
@@ -15,6 +15,14 @@ export interface DocStats {
   words: number;
   functional: number;
   nonFunctional: number;
+  stories: number;
+  screens: number;
+  flows: number;
+  endpoints: number;
+  adrs: number;
+  sqlTables: number;
+  enums: number;
+  lines: number;
 }
 
 /** توليد معرّف آمن لعنوان عربي/إنجليزي */
@@ -76,27 +84,50 @@ export function extractToc(markdown: string): TocItem[] {
   return items;
 }
 
-/** حساب إحصاءات الوثيقة */
-export function computeStats(markdown: string): DocStats {
+/** عدّ المعرفات الفريدة المطابقة لنمط */
+function countUnique(markdown: string, re: RegExp): number {
   const unique = new Set<string>();
-  const re = /(?:FR|NFR)-[A-Z]+-\d+|(?:AC|RK)-\d+|(?<![A-Za-z-])[CAR]-\d+/g;
+  const global = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
   let m: RegExpExecArray | null;
-  while ((m = re.exec(markdown)) !== null) {
+  while ((m = global.exec(markdown)) !== null) {
     unique.add(m[0]);
   }
+  return unique.size;
+}
 
-  const functional = [...unique].filter((x) => x.startsWith("FR-")).length;
-  const nonFunctional = [...unique].filter((x) => x.startsWith("NFR-")).length;
+/** حساب إحصاءات الوثيقة */
+export function computeStats(markdown: string): DocStats {
+  const requirements = countUnique(markdown, /(?:FR|NFR)-[A-Z]+-\d+|(?:AC|RK)-\d+/);
+
+  const functional = countUnique(markdown, /FR-[A-Z]+-\d+/);
+  const nonFunctional = countUnique(markdown, /NFR-[A-Z]+-\d+/);
+  const stories = countUnique(markdown, /US-[A-Z]+-\d+/);
+  const screens = countUnique(markdown, /SC-\d+/);
+  const flows = countUnique(markdown, /FL-\d+/);
+  const endpoints = countUnique(markdown, /EP-[A-Z]+-\d+/);
+  const adrs = countUnique(markdown, /ADR-\d+/);
+
+  const sqlTables = (markdown.match(/CREATE TABLE/g) || []).length;
+  const enums = (markdown.match(/CREATE TYPE/g) || []).length;
+
   const words = markdown
     .replace(/```[\s\S]*?```/g, " ")
     .split(/\s+/)
     .filter(Boolean).length;
 
   return {
-    requirements: unique.size,
+    requirements,
     sections: (markdown.match(/^#{1,3}\s+/gm) || []).length,
     words,
     functional,
     nonFunctional,
+    stories,
+    screens,
+    flows,
+    endpoints,
+    adrs,
+    sqlTables,
+    enums,
+    lines: markdown.split("\n").length,
   };
 }

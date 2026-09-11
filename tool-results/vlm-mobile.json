@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the visual evidence provided in the screenshot:\n\n1.  **Mobile layout intact?** **Yes.** The content is contained within a narrow viewport (approximately 390px width) without any visible horizontal overflow.\n2.  **Collapsible TOC panel visible under the header?** **Yes.** A navigation bar with tabs (Architecture, User Stories, SRS) and a breadcrumb trail are clearly visible immediately below the main header.\n3.  **Arabic text readable and right-aligned?** **Yes.** The text is rendered correctly in Arabic, follows a Right-to-Left (RTL) flow, and the headings and body text are aligned to the right.\n4.  **Any defects?** **Yes, there is one minor defect:** At the very bottom of the screen, the content of what appears to be a table or list is being cut off horizontally (e.g., \"AUTH/P.../M...\" and \"(التوثيق/التصميم)\" are truncated), indicating that this specific section might have slight overflow or the viewport isn't tall enough to display the full row content.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1789164021,
+  "id": "20260912060014346d36ccf8f54ce4",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260912060014346d36ccf8f54ce4",
+  "usage": {
+    "completion_tokens": 230,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 465,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 695
+  }
+}

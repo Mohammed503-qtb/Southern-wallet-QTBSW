@@ -3,13 +3,18 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "محفظة الجنوب — وثيقة المتطلبات البرمجية SRS",
+  title: "محفظة الجنوب — بوابة وثائق المشروع",
   description:
-    "وثيقة المتطلبات البرمجية الكاملة (SRS v1.0) لتطبيق محفظة الجنوب — South Wallet | com.janoub.wallet",
+    "بوابة الوثائق الهندسية الكاملة لمشروع محفظة الجنوب — South Wallet | SRS، قصص المستخدمين، المعمارية، قاعدة البيانات، API، الشاشات، خارطة الطريق | com.janoub.wallet",
   keywords: [
     "محفظة الجنوب",
     "South Wallet",
     "SRS",
+    "User Stories",
+    "Architecture",
+    "ERD",
+    "REST API",
+    "Roadmap",
     "محفظة إلكترونية",
     "Yemen",
     "Digital Wallet",
