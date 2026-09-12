@@ -1,8 +1,18 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// ============================================================
+//  محفظة الجنوب — South Wallet | com.janoub.wallet
+//  مخطط MVP المرحلة 1 (Internal Alpha) — SQLite
+//  مشتق من docs/DATABASE_ERD.md ومكيّف لبيئة التنفيذ
+//
+//  اصطلاحات:
+//  • المبالغ Int بوحدات فرعية (minor units): YER أسّ 0 (1=1 ر.ي)،
+//    SAR/USD أسّ 100 (100=1.00)
+//  • لا ENUM في SQLite → حقول String بترجمة مضمّنة في src/lib/server/domain.ts
+//  • حساب الوكيل (AGENT_FLOAT) = التزام على النظام: رصيده الموجب يعني
+//    أن الوكيل يحتفظ بنقدية نظام؛ قيوده في Ledger معكوسة الإشارة
+//    (DEBIT = زيادة التزام) بحيث يتحقق ثابت Σ(القيود الموقعة)=0 لكل عملية
+//  • مراجع العمليات: SW-YYYYMMDD-XXXXXXXX (تحويل)، RM- (حوالة)،
+//    CW- (نقدي)، TK- (تذكرة)
+// ============================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +23,408 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============ المستخدمون والوصول ============
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String    @id @default(cuid())
+  phone            String    @unique // 9 أرقام يمنية بدون +967
+  fullName         String?
+  // CUSTOMER | AGENT | ADMIN | COMPLIANCE | SUPPORT | SYSTEM
+  role             String    @default("CUSTOMER")
+  // PENDING | ACTIVE | FROZEN | CLOSED
+  status           String    @default("PENDING")
+  // NONE | VERIFIED (مستوى التوثيق)
+  kycLevel         String    @default("NONE")
+  // AC-07: خارج نطاق الخدمة الجغرافي (قراءة فقط)
+  scopeRestricted  Boolean   @default(false)
+  governorate      String?
+  locale           String    @default("ar")
+  pinHash          String?
+  biometricEnabled Boolean   @default(false)
+  pinAttempts      Int       @default(0)
+  pinLockedUntil   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sessions         Session[]
+  wallets          Wallet[]
+  transactions     Transaction[]
+  kyc              KycSubmission?
+  agentProfile     AgentProfile?
+  remittances      Remittance[]      @relation("RemittanceSender")
+  cashOps          CashOperation[]   @relation("CashOpUser")
+  notifications    Notification[]
+  beneficiaries    Beneficiary[]
+  savingsJars      SavingsJar[]
+  tickets          SupportTicket[]  @relation("TicketOwner")
+  ticketMessages   TicketMessage[]
+  auditLogs        AuditLog[]       @relation("AuditActor")
+  commissions      CommissionEntry[]
 }
 
-model Post {
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String
+  code       String // 6 أرقام
+  // REGISTER | LOGIN
+  purpose    String
+  attempts   Int       @default(0)
+  expiresAt  DateTime // 5 دقائق
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, purpose, createdAt])
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  deviceLabel String   @default("متصفح الويب — Alpha")
+  active      Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model KycSubmission {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  fullName          String
+  // NATIONAL_ID | PASSPORT
+  idType            String   @default("NATIONAL_ID")
+  idNumber          String
+  governorate       String
+  address           String?
+  occupation        String?
+  monthlyIncomeMinor Int    @default(0)
+  incomeCurrency    String   @default("YER")
+  // اسم ملف الوثيقة (وضع تجريبي: مرجع فقط)
+  docName           String?
+  selfieName        String?
+  // PENDING | APPROVED | REJECTED
+  status            String   @default("PENDING")
+  reviewerId        String?
+  reviewNote        String?
+  submittedAt       DateTime @default(now())
+  reviewedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ المحافظ والدفاتر ============
+
+model Wallet {
+  id           String   @id @default(cuid())
+  userId       String
+  // YER | SAR | USD
+  currency     String
+  // MAIN | SAVINGS | FEE | SUSPENSE | FX | AGENT_FLOAT
+  kind         String   @default("MAIN")
+  // إن كان kind = SAVINGS → معرف الحصالة
+  jarId        String?
+  balanceMinor Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger LedgerEntry[]
+
+  @@index([userId, kind])
+}
+
+model Transaction {
+  id            String    @id @default(cuid())
+  ref           String    @unique // SW-YYYYMMDD-XXXXXXXX
+  userId        String
+  // TRANSFER_OUT | TRANSFER_IN | REMITTANCE | REMITTANCE_REFUND |
+  // CASH_IN | CASH_OUT | CASH_REFUND | SAVING_IN | SAVING_OUT |
+  // FX_EXCHANGE | SYSTEM_ADJUST
+  type          String
+  // PENDING | COMPLETED | FAILED | CANCELLED | EXPIRED
+  status        String    @default("COMPLETED")
+  currency      String
+  amountMinor   Int
+  feeMinor      Int       @default(0)
+  // DEBIT (خروج) | CREDIT (دخول) من منظور المستخدم
+  direction     String
+  counterpartyName  String?
+  counterpartyPhone String?
+  description   String?
+  // Idempotency-Key كما أرسله العميل (فريد لكل مستخدم)
+  idempotencyKey String?
+  relatedRef    String?
+  // JSON نصي: تفاصيل إضافية (رمز التسليم، الوكيل، التحويل بين المحافظ…)
+  metadataJson  String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger  LedgerEntry[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+// قيد دفتري لكل حركة رصيد — ثابت: Σ المبالغ الموقعة = 0 لكل عملية/عملة
+model LedgerEntry {
+  id                String   @id @default(cuid())
+  // مرجع العملية (Transaction.ref) أو مرجع داخلي مركّب
+  transactionRef    String
+  walletId          String
+  // DEBIT (ينقص الرصيد القابل للإنفاق) | CREDIT (يزيده)
+  direction         String
+  amountMinor       Int
+  balanceAfterMinor Int
+  currency          String
+  createdAt         DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionRef], references: [ref])
+  wallet     Wallet        @relation(fields: [walletId], references: [id])
+
+  @@index([walletId])
+  @@index([transactionRef])
+}
+
+// ============ الحوالات (لغير المستخدمين عبر الوكلاء) ============
+
+model Remittance {
+  id            String    @id @default(cuid())
+  ref           String    @unique // RM-YYYYMMDD-XXXXXXXX
+  senderId      String
+  receiverName  String
+  receiverPhone String
+  currency      String
+  amountMinor   Int
+  feeMinor      Int
+  // رمز التسليم 6 أرقام — يستلم به المستلم نقداً لدى الوكيل
+  deliveryCode  String
+  // PENDING | PAID | CANCELLED | EXPIRED
+  status        String    @default("PENDING")
+  payingAgentId String?
+  paidAt        DateTime?
+  cancelledAt   DateTime?
+  // صلاحية الاستلام 7 أيام
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+
+  sender User @relation("RemittanceSender", fields: [senderId], references: [id])
+
+  @@index([senderId, createdAt])
+  @@index([status])
+}
+
+// ============ الوكلاء والعمليات النقدية ============
+
+model AgentProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  code          String   @unique // مثال: AG-ADEN-001
+  shopName      String
+  governorate   String
+  district      String?
+  address       String?
+  lat           Float?
+  lng           Float?
+  // ACTIVE | SUSPENDED
+  status        String   @default("ACTIVE")
+  // عوم الوكيل بعملة YER فقط (Alpha)
+  floatMinor    Int      @default(0)
+  // عمولة الوكيل بالنقاط الأساسية (50 = 0.5%)
+  commissionBps Int      @default(50)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model CashOperation {
+  id          String    @id @default(cuid())
+  ref         String    @unique // CW-YYYYMMDD-XXXXXXXX
+  userId      String
+  // User.id للوكيل
+  agentId     String
+  // DEPOSIT | WITHDRAW
+  type        String
+  currency    String    // YER فقط في Alpha
+  amountMinor Int
+  feeMinor    Int       @default(0)
+  // رمز 6 أرقام للتحقق لدى الوكيل
+  code        String
+  // PENDING | COMPLETED | CANCELLED | EXPIRED
+  status      String    @default("PENDING")
+  expiresAt   DateTime
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation("CashOpUser", fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([agentId, status])
+}
+
+// استحقاق عمولة الوكيل (تراكمية — التسوية لاحقاً)
+model CommissionEntry {
+  id         String   @id @default(cuid())
+  agentId    String
+  // CASH_IN | WITHDRAW | REMITTANCE
+  opType     String
+  sourceRef  String
+  amountMinor Int
+  createdAt  DateTime @default(now())
+
+  agent User @relation(fields: [agentId], references: [id])
+
+  @@index([agentId, createdAt])
+}
+
+// ============ الحصالة والمفضلون ============
+
+model SavingsJar {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  targetMinor Int?
+  currency   String
+  // ACTIVE | ACHIEVED | BROKEN
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Beneficiary {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  userId    String
+  name      String
+  phone     String
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, phone])
+}
+
+// ============ الإشعارات والدعم ============
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  // TXN | SECURITY | KYC | SYSTEM | SUPPORT
+  category  String   @default("SYSTEM")
+  read      Boolean  @default(false)
+  txRef     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  ref       String   @unique // TK-YYYYMMDD-XXXX
+  userId    String
+  subject   String
+  // PAYMENT | TRANSFER | REMITTANCE | KYC | ACCOUNT | OTHER
+  category  String   @default("OTHER")
+  // OPEN | IN_PROGRESS | RESOLVED
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User           @relation("TicketOwner", fields: [userId], references: [id])
+  messages TicketMessage[]
+
+  @@index([status, updatedAt])
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  authorRole String
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id])
+}
+
+// ============ الإدارة والتدقيق ============
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorRole  String
+  action     String // مثال: KYC_APPROVE, USER_FREEZE, FEE_UPDATE
+  targetType String
+  targetId   String
+  reason     String?
+  // JSON نصي بتفاصيل إضافية
+  metaJson   String?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([createdAt])
+  @@index([action])
+}
+
+// ============ قواعد التشغيل (قابلة للتحرير إدارياً) ============
+
+// حدود حسب مستوى التوثيق والعملة
+model LimitRule {
+  id                String  @id @default(cuid())
+  // NONE | VERIFIED
+  kycLevel          String
+  currency          String
+  dailyTxnCount     Int     @default(5)
+  dailyAmountMinor  Int     @default(0)
+  perTxnAmountMinor Int     @default(0)
+
+  @@unique([kycLevel, currency])
+}
+
+// رسوم حسب نوع العملية والعملة
+model FeeRule {
+  id           String @id @default(cuid())
+  // TRANSFER | REMITTANCE | WITHDRAW | FX
+  opType       String
+  currency     String
+  pctBps       Int    @default(0) // 100 = 1%
+  fixedMinor   Int    @default(0)
+  minFeeMinor  Int    @default(0)
+  maxFeeMinor  Int?
+
+  @@unique([opType, currency])
+}
+
+// سعر الصرف (rate = وحدة العملة الهدف لكل وحدة المصدر × 1,000,000)
+model FxRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Int // مقيس ×1e6
+  updatedAt    DateTime @updatedAt
+
+  @@unique([fromCurrency, toCurrency])
+}
+
+// حالة الخدمات (Master §139: لا تكامل حقيقي = معلنة معطلة)
+model ServiceState {
+  id        String   @id @default(cuid())
+  // BILLS | TOPUP | NETWORK_CARDS | MERCHANT_PAY | REMITTANCE_IN | OFFLINE
+  key       String   @unique
+  // ON | OFF | COMING_LATER | MAINTENANCE
+  state     String   @default("OFF")
+  note      String?
   updatedAt DateTime @updatedAt
 }

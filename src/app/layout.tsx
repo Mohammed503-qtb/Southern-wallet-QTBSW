@@ -1,27 +1,31 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "محفظة الجنوب — بوابة وثائق المشروع",
+  title: "محفظة الجنوب — Alpha الداخلي",
   description:
-    "بوابة الوثائق الهندسية الكاملة لمشروع محفظة الجنوب — South Wallet | SRS، قصص المستخدمين، المعمارية، قاعدة البيانات، API، الشاشات، خارطة الطريق | com.janoub.wallet",
+    "محفظة الجنوب | South Wallet — محفظة إلكترونية يمنية متعددة العملات (YER/SAR/USD): تحويلات، حوالات، وكلاء معتمدون، حصالة ذكية — النسخة التجريبية الداخلية (Alpha) | com.janoub.wallet",
   keywords: [
     "محفظة الجنوب",
     "South Wallet",
-    "SRS",
-    "User Stories",
-    "Architecture",
-    "ERD",
-    "REST API",
-    "Roadmap",
     "محفظة إلكترونية",
-    "Yemen",
+    "تحويل أموال",
+    "حوالات",
+    "اليمن",
     "Digital Wallet",
+    "Alpha",
   ],
   icons: {
     icon: "/logo.jpg",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0B0B0C",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
