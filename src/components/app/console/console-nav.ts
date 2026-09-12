@@ -10,6 +10,7 @@ import {
   Clock3,
   Coins,
   Gauge,
+  Landmark,
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
@@ -32,6 +33,7 @@ export type ConsoleSectionKey =
   | "transactions"
   | "rules"
   | "pending"
+  | "remit-in"
   | "audit"
   | "tickets";
 
@@ -88,6 +90,12 @@ const SECTIONS: Record<ConsoleSectionKey, NavSectionDef> = {
     description: "حوالات وعمليات نقدية بانتظار التسوية",
     icon: Clock3,
   },
+  "remit-in": {
+    key: "remit-in",
+    label: "الحوالات الواردة",
+    description: "إصدار حوالات شبكات الصرافة وتتبع استلامها (A-03)",
+    icon: Landmark,
+  },
   audit: {
     key: "audit",
     label: "التدقيق",
@@ -111,10 +119,11 @@ const ROLE_SECTIONS: Record<"ADMIN" | "COMPLIANCE" | "SUPPORT", ConsoleSectionKe
     "transactions",
     "rules",
     "pending",
+    "remit-in",
     "audit",
     "tickets",
   ],
-  COMPLIANCE: ["overview", "users", "kyc", "transactions", "audit"],
+  COMPLIANCE: ["overview", "users", "kyc", "transactions", "remit-in", "audit"],
   SUPPORT: ["tickets"],
 };
 

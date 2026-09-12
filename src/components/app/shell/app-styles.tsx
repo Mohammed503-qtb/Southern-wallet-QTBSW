@@ -14,7 +14,8 @@ const CSS = `
   to { opacity: 1; transform: scale(1); }
 }
 @keyframes sw-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
+  /* نبدأ من شبه مرئي (0.3) لا من الصفر — يمنع وميض الإطار الفارغ عند الانتقال */
+  from { opacity: 0.3; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes sw-progress {
@@ -26,7 +27,7 @@ const CSS = `
   50% { opacity: 1; }
 }
 .sw-splash-logo { animation: sw-splash-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.sw-fade-in { animation: sw-fade-in 300ms ease-out both; }
+.sw-fade-in { animation: sw-fade-in 220ms ease-out both; }
 .sw-progress-track { background: rgba(201, 162, 39, 0.18); }
 .sw-progress-bar { animation: sw-progress 1.15s ease-in-out infinite; }
 .sw-breathe { animation: sw-breathe 2.2s ease-in-out infinite; }

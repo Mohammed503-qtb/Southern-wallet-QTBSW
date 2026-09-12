@@ -87,7 +87,7 @@ export const POST = route(async (req) => {
     throw new RouteError("AUTH-005", 403, { reason: "CLOSED" });
   }
 
-  await createSession(user.id);
+  const sessionToken = await createSession(user.id);
 
   const result: AuthResultView = {
     user: toPublicUser(user),
@@ -97,6 +97,7 @@ export const POST = route(async (req) => {
         ? "الحساب مجمّد — يمكنك الدخول للاطلاع فقط"
         : null,
     noticeCode: user.status === "FROZEN" ? "AUTH-005" : null,
+    sessionToken,
   };
   return ok(result);
 });

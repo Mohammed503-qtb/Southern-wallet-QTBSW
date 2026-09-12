@@ -3,8 +3,11 @@
  * وضعان:
  * (أ) رمز استلامي: بطاقة QR كبيرة SWPAY:<هاتفي> من /api/qr + مشاركة الرقم.
  * (ب) مسح: كاميرا عبر BarcodeDetector إن توفرت (ب fallback لطيف) +
- * إدخال يدوي للرقم + أزرار محاكاة تجريبية (نورة 770000005 / محمد 770000004).
- * عند قراءة SWPAY:<phone> أو إدخال يدوي → transfer بتمرير params.phone.
+ * إدخال يدوي للرقم + أزرار محاكاة تجريبية.
+ * التوجيه (قرار 9-c — المسار السلس): عند قراءة SWPAY:<phone> أو إدخاله
+ * يدوياً ننتقل دائماً إلى pay-merchant بpayload — وشاشة الدفع نفسها تفصل:
+ * تاجر → تدفق الدفع، مستخدم عادي → تعرض زر «تحويل عادي» إلى transfer.
+ * (أزرار المحاكاة: عمالاء → transfer كما كان، تجار → pay-merchant مباشرة.)
  */
 
 "use client";
@@ -31,8 +34,10 @@ type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDete
 type Mode = "my" | "scan";
 
 const DEMO_CONTACTS = [
-  { name: "محمد", phone: "770000004", full: "محمد سعيد العمودي" },
-  { name: "نورة", phone: "770000005", full: "نورة عبدالله الكثيري" },
+  { name: "محمد", phone: "770000004", full: "محمد سعيد العمودي", kind: "customer" as const },
+  { name: "نورة", phone: "770000005", full: "نورة عبدالله الكثيري", kind: "customer" as const },
+  { name: "متجر الجنوب", phone: "770000020", full: "متجر الجنوب للأغذية", kind: "merchant" as const },
+  { name: "صيدلية الشفاء", phone: "770000021", full: "صيدلية الشفاء", kind: "merchant" as const },
 ];
 
 export function ScanQrScreen() {
@@ -77,9 +82,20 @@ export function ScanQrScreen() {
     }
   };
 
-  const goTransfer = (phone: string) => {
+  /** عميل عادي → تحويل عادي؛ تاجر → شاشة الدفع للتاجر (payload SWPAY) */
+  const goContact = (c: (typeof DEMO_CONTACTS)[number]) => {
+    if (c.phone.length !== 9) return;
+    if (c.kind === "merchant") {
+      navigate("pay-merchant", { payload: `SWPAY:${c.phone}` });
+    } else {
+      navigate("transfer", { phone: c.phone });
+    }
+  };
+
+  /** مسح/إدخال يدوي → pay-merchant بpayload (يفصل تاجراً عن مستخدم عادي) */
+  const goPay = (phone: string) => {
     if (phone.length !== 9) return;
-    navigate("transfer", { phone });
+    navigate("pay-merchant", { payload: `SWPAY:${phone}` });
   };
 
   // ===== الكاميرا + BarcodeDetector (في وضع المسح) =====
@@ -134,7 +150,7 @@ export function ScanQrScreen() {
                 if (phone.length === 9) {
                   if (timer) clearInterval(timer);
                   toast({ title: "تم قراءة رمز QR", description: `الرقم ${phone}` });
-                  goTransfer(phone);
+                  goPay(phone);
                 }
               }
             } catch {
@@ -309,11 +325,11 @@ export function ScanQrScreen() {
             </div>
             <div className="mt-3">
               <PrimaryActionButton
-                onClick={() => goTransfer(manualPhone)}
+                onClick={() => goPay(manualPhone)}
                 disabled={manualPhone.length !== 9}
                 disabledReason={manualPhone.length > 0 ? "أكمل 9 خانات" : "أدخل رقم المستلم"}
               >
-                متابعة للتحويل
+                متابعة للدفع / التحويل
               </PrimaryActionButton>
             </div>
           </div>
@@ -328,7 +344,7 @@ export function ScanQrScreen() {
                 <button
                   key={c.phone}
                   type="button"
-                  onClick={() => goTransfer(c.phone)}
+                  onClick={() => goContact(c)}
                   className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A227]/40 bg-white px-3 text-[13px] font-bold text-[#141416] transition-colors hover:bg-[#FDFCFA]"
                 >
                   <UserRound strokeWidth={1.5} className="h-4 w-4 text-[#C9A227]" />
@@ -336,6 +352,9 @@ export function ScanQrScreen() {
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-[11px] font-medium leading-4 text-[#8A6E14]/80">
+              أول خانتين عملاء (تحويل عادي) والثانيتان تجار معتمدون (دفع QR)
+            </p>
           </div>
 
           <button

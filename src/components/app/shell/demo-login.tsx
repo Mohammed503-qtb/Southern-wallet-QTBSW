@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAppStore } from "@/lib/app-store";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, saveSessionToken } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   { phone: "770000001", label: "عميل موثّق", note: "أحمد السُّقطري — أرصدة وسجل غني" },
   { phone: "770000002", label: "عميلة جديدة", note: "فاطمة العريقي — بدون KYC" },
   { phone: "770000003", label: "خارج النطاق", note: "سامي الحضرمي — اطلاع فقط (AC-07)" },
+  { phone: "770000020", label: "تاجر", note: "متجر الجنوب — نقطة البيع QR" },
   { phone: "770000010", label: "وكيل", note: "وكيل النور — عدن، عوم 2 مليون" },
   { phone: "770100001", label: "مدير", note: "ADMIN — كامل الصلاحيات" },
   { phone: "770100002", label: "امتثال", note: "COMPLIANCE — طابور KYC" },
@@ -42,7 +43,10 @@ export function DemoLoginButtons({ onDone, layout = "panel" }: DemoLoginButtonsP
   const login = async (account: DemoAccount) => {
     setBusyPhone(account.phone);
     try {
-      await api.post("/api/auth/demo-login", { phone: account.phone });
+      const data = await api.post<{ sessionToken?: string }>("/api/auth/demo-login", {
+        phone: account.phone,
+      });
+      if (data.sessionToken) saveSessionToken(data.sessionToken);
       await bootstrap();
       toast({ title: `تم الدخول باسم ${account.label}`, description: account.note });
       onDone?.();

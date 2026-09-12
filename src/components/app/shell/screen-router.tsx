@@ -38,6 +38,16 @@ import { SavingsScreen } from "@/components/app/features/money/savings-screen";
 import { SavingsNewScreen } from "@/components/app/features/money/savings-new-screen";
 import { SavingsGoalScreen } from "@/components/app/features/money/savings-goal-screen";
 
+// خدمات المرحلة 2 — Closed Beta (9-b/9-c)
+import { BillsScreen } from "@/components/app/features/money/bills-screen";
+import { BillPayScreen } from "@/components/app/features/money/bill-pay-screen";
+import { TopupScreen } from "@/components/app/features/money/topup-screen";
+import { CardsScreen } from "@/components/app/features/money/cards-screen";
+import { MyQrScreen } from "@/components/app/features/money/my-qr-screen";
+import { PayMerchantScreen } from "@/components/app/features/money/pay-merchant-screen";
+import { MerchantPosScreen } from "@/components/app/features/money/merchant-pos-screen";
+import { RemitInScreen } from "@/components/app/features/money/remit-in-screen";
+
 // شاشات الحساب — account (8-c-2)
 import { TransactionsScreen } from "@/components/app/features/account/transactions-screen";
 import { TransactionDetailsScreen } from "@/components/app/features/account/transaction-details-screen";
@@ -80,6 +90,14 @@ export const SCREEN_TITLES: Record<ScreenKey, string> = {
   savings: "الحصالة",
   "savings-new": "حصالة جديدة",
   "savings-goal": "هدف الحصالة",
+  bills: "الفواتير",
+  "bill-pay": "سداد فاتورة",
+  topup: "شحن رصيد",
+  cards: "كروت الشبكة",
+  "my-qr": "رمز الدفع الخاص بي",
+  "pay-merchant": "الدفع للتاجر",
+  "merchant-pos": "نقطة البيع",
+  "remit-in": "الحوالات الواردة",
   transactions: "سجل العمليات",
   "transaction-details": "تفاصيل العملية",
   statement: "كشف الحساب",
@@ -149,6 +167,15 @@ const screens: Record<ScreenKey, () => ReactNode> = {
   savings: () => <SavingsScreen />,
   "savings-new": () => <SavingsNewScreen />,
   "savings-goal": () => <SavingsGoalScreen />,
+  // خدمات المرحلة 2 — Closed Beta (9-b/9-c)
+  bills: () => <BillsScreen />,
+  "bill-pay": () => <BillPayScreen />,
+  topup: () => <TopupScreen />,
+  cards: () => <CardsScreen />,
+  "my-qr": () => <MyQrScreen />,
+  "pay-merchant": () => <PayMerchantScreen />,
+  "merchant-pos": () => <MerchantPosScreen />,
+  "remit-in": () => <RemitInScreen />,
   // account (8-c-2)
   transactions: () => <TransactionsScreen />,
   "transaction-details": () => <TransactionDetailsScreen />,
@@ -170,13 +197,16 @@ const screens: Record<ScreenKey, () => ReactNode> = {
 export function ScreenRouter() {
   const screen = useAppStore((s) => s.screen);
   const params = useAppStore((s) => s.params);
+  // هوية المستخدم ضمن مفتاح التركيب: تبديل المستخدم (دخول سريع/خروج)
+  // يعيد تركيب الشاشة كاملة فتُجلب كل بياناتها من جديد — لا بيانات عالقة عبر الجلسات
+  const userId = useAppStore((s) => s.me?.user.id ?? "anon");
 
   const render = screens[screen];
   const content: ReactNode = render ? render() : null;
 
   return (
     <ScreenErrorBoundary>
-      <div key={`${screen}:${JSON.stringify(params)}`} className="sw-fade-in min-h-full">
+      <div key={`${screen}:${JSON.stringify(params)}:${userId}`} className="sw-fade-in min-h-full">
         {content}
       </div>
     </ScreenErrorBoundary>

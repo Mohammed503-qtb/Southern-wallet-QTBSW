@@ -28,6 +28,35 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+// ============ رمز الجلسة (القناة الاحتياطية iframe-safe) ============
+// يخزَّن بعد الدخول ويُرسل مع كل طلب عبر ترويسة x-sw-session —
+// الكوكي يبقى القناة الأساسية (httpOnly) وهذا احتياط لسياق إطار المعاينة.
+const SESSION_TOKEN_KEY = "sw_token";
+
+export function saveSessionToken(token: string): void {
+  try {
+    window.localStorage.setItem(SESSION_TOKEN_KEY, token);
+  } catch {
+    /* التخزين غير متاح — الكوكي يكفي */
+  }
+}
+
+export function clearSessionToken(): void {
+  try {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+  } catch {
+    /* تجاهل */
+  }
+}
+
+function readSessionToken(): string | null {
+  try {
+    return window.localStorage.getItem(SESSION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 function genIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -66,6 +95,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+  // القناة الاحتياطية للجلسة (iframe-safe) — يعرفها الخادم بجانب الكوكي
+  const sessionToken = readSessionToken();
+  if (sessionToken) headers["x-sw-session"] = sessionToken;
 
   let res: Response;
   try {

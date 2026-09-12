@@ -21,13 +21,14 @@ export const POST = route(async (req) => {
     throw new RouteError("AUTH-005", 403, { reason: "CLOSED" });
   }
 
-  await createSession(user.id, "دخول تجريبي سريع — Alpha");
+  const sessionToken = await createSession(user.id, "دخول تجريبي سريع — Alpha");
 
   const result: AuthResultView = {
     user: toPublicUser(user),
     needsPin: user.pinHash === null,
     notice: user.status === "FROZEN" ? "الحساب مجمّد — يمكنك الدخول للاطلاع فقط" : null,
     noticeCode: user.status === "FROZEN" ? "AUTH-005" : null,
+    sessionToken,
   };
   return ok(result);
 });

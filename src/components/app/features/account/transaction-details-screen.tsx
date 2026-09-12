@@ -6,7 +6,8 @@
  */
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Printer } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, Printer, TriangleAlert } from "lucide-react";
+import { useState } from "react";
 import { useAppStore } from "@/lib/app-store";
 import type { TxDetailView } from "@/lib/api-types";
 import {
@@ -20,8 +21,9 @@ import { Skeleton } from "@/components/app/ui/skeleton";
 import { ReceiptCard, type ReceiptField, type ReceiptParty } from "@/components/app/ui/receipt-card";
 import { ScreenHeader } from "@/components/app/ui/screen-header";
 import { formatDateTime } from "@/components/app/ui/utils";
-import { SectionCard } from "./account-shared";
+import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { SectionCard } from "./account-shared";
 
 /** أنماط الطباعة: إخفاء كل شيء عدا منطقة الإيصال (تُركَّب عند التفاصيل فقط) */
 const PRINT_CSS = `
@@ -43,6 +45,82 @@ function shortWallet(id: string): string {
   return id.length > 10 ? `…${id.slice(-8)}` : id;
 }
 
+// ============ إضافة 9-b: استرجاع metadata خدمات الدفع (فواتير/شحن/كروت) ============
+
+/** استجابة GET /api/bills?ref= — بيانات فاتورة العملية */
+interface BillsTxMetaView {
+  billerName: string;
+  accountNumber: string | null;
+  dueAmountMinor: number | null;
+}
+
+/** استجابة GET /api/topup?ref= — بيانات شحن العملية */
+interface TopupTxMetaView {
+  operatorName: string;
+  phone: string | null;
+}
+
+/** استجابة GET /api/cards?ref= — بيانات كرت العملية */
+interface CardTxMetaView {
+  cardCode: string | null;
+  productName: string | null;
+  operatorName: string;
+  productCode: string | null;
+}
+
+/** بطاقة رمز الكرت (CARD_PURCHASE) — داكنة ذهبية بزر نسخ، بنمط بطاقات الرموز */
+function CardCodeBox({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      toast({ title: "تم نسخ رمز الكرت", description: code });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "تعذّر النسخ", description: "انسخ الرمز يدوياً", variant: "destructive" });
+    }
+  };
+  return (
+    <article className="relative w-full overflow-hidden rounded-2xl bg-[#0B0B0C] p-4 text-white shadow-[0_8px_24px_rgba(11,11,12,0.12)]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
+        <span className="absolute -left-10 -top-10 h-32 w-32 rotate-45 rounded-xl border border-[#C9A227]/20" />
+        <span className="absolute -right-12 -bottom-14 h-36 w-36 rotate-45 rounded-xl border border-[#C9A227]/15" />
+      </div>
+      <div className="relative">
+        <p className="text-center text-[12px] font-semibold text-white/60">رمز الكرت — 11 خانة</p>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          aria-label="نسخ رمز الكرت"
+          className="group mt-1.5 flex w-full flex-col items-center"
+        >
+          <p
+            dir="ltr"
+            className="flex items-center gap-2.5 text-[26px] font-extrabold leading-9 tabular-nums tracking-[0.14em] text-[#C9A227]"
+          >
+            {code}
+            <Copy
+              strokeWidth={1.5}
+              className={cn(
+                "h-[18px] w-[18px] transition-colors",
+                copied ? "text-[#15803D]" : "text-white/40 group-hover:text-white/70",
+              )}
+            />
+          </p>
+          <span className="mt-0.5 text-[11px] font-medium text-white/45">اضغط على الرمز لنسخه</span>
+        </button>
+        <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-[#C9A227]/25 bg-[#C9A227]/[0.08] px-3 py-2">
+          <TriangleAlert strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A227]" />
+          <p className="text-[11.5px] font-semibold leading-5 text-[#E9DFC3]">
+            يظهر الرمز هنا وفي إشعار العملية فقط — احفظه؛ فقدته يعني فقدة الكرت.
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function TransactionDetailsScreen() {
   const params = useAppStore((s) => s.params);
   const navigate = useAppStore((s) => s.navigate);
@@ -51,6 +129,18 @@ export function TransactionDetailsScreen() {
 
   const details = useApiData<TxDetailView>(
     ref ? `/api/transactions/${encodeURIComponent(ref)}` : null,
+  );
+
+  // إضافة 9-b: استرجاع metadata خدمات الدفع حسب نوع العملية (?ref= على مسارات 9-b)
+  const txType = details.data?.type ?? null;
+  const billsMeta = useApiData<BillsTxMetaView>(
+    txType === "BILL_PAY" && ref ? `/api/bills?ref=${encodeURIComponent(ref)}` : null,
+  );
+  const topupMeta = useApiData<TopupTxMetaView>(
+    txType === "TOPUP" && ref ? `/api/topup?ref=${encodeURIComponent(ref)}` : null,
+  );
+  const cardMeta = useApiData<CardTxMetaView>(
+    txType === "CARD_PURCHASE" && ref ? `/api/cards?ref=${encodeURIComponent(ref)}` : null,
   );
 
   if (!ref) {
@@ -126,6 +216,16 @@ export function TransactionDetailsScreen() {
   if (tx.description) {
     fields.push({ label: "الوصف", value: tx.description });
   }
+  // إضافة 9-b: حقول metadata خدمات الدفع (اسم المزود في counterpartyName ورقم الحساب/الهاتف/الباقة هنا)
+  if (tx.type === "BILL_PAY" && billsMeta.data?.accountNumber) {
+    fields.push({ label: "رقم الحساب", value: billsMeta.data.accountNumber });
+  }
+  if (tx.type === "TOPUP" && topupMeta.data?.phone) {
+    fields.push({ label: "الرقم المشحون", value: topupMeta.data.phone });
+  }
+  if (tx.type === "CARD_PURCHASE" && cardMeta.data?.productName) {
+    fields.push({ label: "الباقة", value: cardMeta.data.productName });
+  }
   if (tx.relatedRef) {
     fields.push({ label: "مرجع مرتبط", value: tx.relatedRef });
   }
@@ -165,6 +265,11 @@ export function TransactionDetailsScreen() {
             })
           }
         />
+
+        {/* إضافة 9-b: بطاقة رمز الكرت لعمليات CARD_PURCHASE */}
+        {tx.type === "CARD_PURCHASE" && cardMeta.data?.cardCode ? (
+          <CardCodeBox code={cardMeta.data.cardCode} />
+        ) : null}
 
         {/* قيود الدفتر المصغّرة (T4 details.ledger) */}
         {ledger.length > 0 ? (

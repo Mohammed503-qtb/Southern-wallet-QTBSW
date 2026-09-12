@@ -65,14 +65,14 @@ const HOME_SERVICES: QuickService[] = [
     title: "الفواتير",
     description: "سداد فواتير الخدمات",
     icon: ReceiptText,
-    screen: null,
+    screen: "bills",
     stateKey: "BILLS",
   },
   {
     title: "شحن رصيد",
     description: "رصيد وبطاقات",
     icon: Smartphone,
-    screen: null,
+    screen: "topup",
     stateKey: "TOPUP",
   },
   { title: "الحصالة", description: "أهداف ادخارية", icon: PiggyBank, screen: "savings" },
@@ -166,6 +166,12 @@ export function HomeScreen() {
 
   const openService = (svc: QuickService) => {
     if (svc.stateKey) {
+      // الخدمة المتاحة ON تُفتح مباشرة — والSheet فقط للحالات الأخرى
+      const state = stateMap.get(svc.stateKey)?.state ?? "COMING_LATER";
+      if (state === "ON" && svc.screen) {
+        navigate(svc.screen);
+        return;
+      }
       setSheet(svc);
       return;
     }
@@ -198,6 +204,26 @@ export function HomeScreen() {
         </div>
         <img src="/logo.svg" alt="محفظة الجنوب" className="h-9 w-9 shrink-0" />
       </header>
+
+      {/* ===== بطاقة نقطة البيع (تاجر فقط — 9-c) ===== */}
+      {user.role === "MERCHANT" ? (
+        <button
+          type="button"
+          onClick={() => navigate("merchant-pos")}
+          className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-[#C9A227]/50 bg-[#C9A227]/[0.08] p-3.5 text-right transition-colors hover:bg-[#C9A227]/[0.14]"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0B0B0C] text-[#C9A227]">
+            <QrCode strokeWidth={1.5} className="h-5 w-5" />
+          </span>
+          <span className="flex-1">
+            <span className="block text-[15px] font-bold text-[#8A6E14]">نقطة البيع — رمز دفع متجرك</span>
+            <span className="block text-[12px] font-medium text-[#8A6E14]/80">
+              اعرض رمز QR للزبائن وتابع مبيعات اليوم والمستحق للتسوية
+            </span>
+          </span>
+          <ChevronLeft strokeWidth={1.5} className="h-5 w-5 shrink-0 text-[#C9A227]" />
+        </button>
+      ) : null}
 
       {/* ===== بطاقة الرصيد (أسود الجنوب + زخرفة معيّنات ذهبية) ===== */}
       <section className="relative mt-4 overflow-hidden rounded-2xl bg-[#0B0B0C] p-5 text-white shadow-[0_8px_24px_rgba(11,11,12,0.10)]">

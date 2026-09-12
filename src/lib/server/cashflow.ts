@@ -22,6 +22,14 @@ interface SettleNotice {
 /**
  * إنهاء حوالة PENDING (إلغاء/انتهاء) + استرجاع المبلغ من SUSPENSE إلى MAIN
  * يرمي REM-001 إذا سبق إنهاؤها (تعارض تزامني).
+ *
+ * ==== حيلة A-03 (الحوالات الواردة من شبكات الصرافة — 9-c) ====
+ * الحوالة الواردة تُخزَّن في نفس جدول Remittance لكن أموالها خارجية (لم تُحجز
+ * في SUSPENSE) — تموَّل عند المطالبة من محفظة FX (النقد الخارجي للاقتصاد
+ * المغلق D-01). دلالتها: لا توجد معاملة REMITTANCE ممولة بنفس المرجع، بل
+ * معاملة REMIT_IN_CLAIM نائبة (PENDING). لذلك عند إنهائها (انتهاء كسول أو
+ * إلغاء إداري M15) يُقلب status فقط (أعلاه) ويُشعر المستلم — بلا أي استرجاع
+ * نقدي — وإلا لَسحب المحرك من SUSPENSE أموالاً لم تدخل النظام أبداً.
  */
 export async function settleRemittance(
   tx: DbClient,
@@ -40,6 +48,26 @@ export async function settleRemittance(
     where: { ref: rem.ref },
     data: { status: newStatus },
   });
+
+  // A-03: حوالة واردة (لا معاملة REMITTANCE ممولة بنفس المرجع) → إنهاء بلا دفتر
+  const funding = await tx.transaction.findFirst({
+    where: { ref: rem.ref, type: "REMITTANCE" },
+    select: { id: true },
+  });
+  if (!funding) {
+    const receiver = await tx.user.findUnique({ where: { phone: rem.receiverPhone } });
+    if (receiver) {
+      const title =
+        newStatus === "CANCELLED" ? "أُلغيت حوالة واردة" : "انتهت صلاحية حوالة واردة";
+      const body =
+        newStatus === "CANCELLED"
+          ? `أُلغيت الحوالة الواردة ${rem.ref} بمبلغ ${formatMinor(rem.amountMinor, rem.currency as CurrencyCode)} من قبل الإدارة.`
+          : `لم تُستلم الحوالة الواردة ${rem.ref} بمبلغ ${formatMinor(rem.amountMinor, rem.currency as CurrencyCode)} قبل انتهاء صلاحيتها — راجع الشبكة المرسلة.`;
+      await notify(tx, receiver.id, title, body, "TXN", rem.ref);
+    }
+    return;
+  }
+
   const main = await getOrCreateMainWallet(tx, rem.senderId, rem.currency);
   const suspense = await getSystemWallet(tx, "SUSPENSE", rem.currency);
   const refundRef = generateRef("RM");

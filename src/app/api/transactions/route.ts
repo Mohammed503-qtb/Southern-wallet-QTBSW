@@ -23,6 +23,10 @@ const VALID_TYPES = [
   "SAVING_OUT",
   "FX_EXCHANGE",
   "SYSTEM_ADJUST",
+  // إضافة 9-b: أنواع خدمات الدفع (المرحلة 2) — لدعم فلتر types=BILL_PAY/…
+  "BILL_PAY",
+  "TOPUP",
+  "CARD_PURCHASE",
 ];
 
 export const GET = route(async (req) => {

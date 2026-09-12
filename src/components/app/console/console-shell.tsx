@@ -22,6 +22,7 @@ import { AgentsSection } from "./sections/agents-section";
 import { TransactionsSection } from "./sections/transactions-section";
 import { RulesSection } from "./sections/rules-section";
 import { PendingSection } from "./sections/pending-section";
+import { RemitInSection } from "./sections/remit-in-section";
 import { AuditSection } from "./sections/audit-section";
 import { TicketsSection } from "./sections/tickets-section";
 
@@ -103,6 +104,8 @@ export function ConsoleShell() {
         return <RulesSection />;
       case "pending":
         return <PendingSection />;
+      case "remit-in":
+        return <RemitInSection />;
       case "audit":
         return <AuditSection />;
       case "tickets":

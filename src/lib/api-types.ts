@@ -33,13 +33,14 @@ export const IN_SCOPE_GOVERNORATES = [
 ] as const;
 
 /** محافظات خارج النطاق (أمثلة AC-07) */
-export const OUT_OF_SCOPE_EXAMPLES = ["صنعاء", "تعز", "الحديدة", "إب", "حجة", "مأرب", "ذمار", "البيضاء", "الجوفة", "ريمة", "عمران", "المحويت", "أبين"];
+export const OUT_OF_SCOPE_EXAMPLES = ["صنعاء", "تعز", "الحديدة", "إب", "حجة", "مأرب", "ذمار", "البيضاء", "الجوفة", "ريمة", "عمران", "المحويت"];
 
-export const USER_ROLES = ["CUSTOMER", "AGENT", "ADMIN", "COMPLIANCE", "SUPPORT", "SYSTEM"] as const;
+export const USER_ROLES = ["CUSTOMER", "MERCHANT", "AGENT", "ADMIN", "COMPLIANCE", "SUPPORT", "SYSTEM"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   CUSTOMER: "عميل",
+  MERCHANT: "تاجر / نقطة بيع",
   AGENT: "وكيل معتمد",
   ADMIN: "مدير النظام",
   COMPLIANCE: "مراجع KYC/الامتثال",
@@ -69,7 +70,13 @@ export type TxType =
   | "SAVING_IN"
   | "SAVING_OUT"
   | "FX_EXCHANGE"
-  | "SYSTEM_ADJUST";
+  | "SYSTEM_ADJUST"
+  | "BILL_PAY"
+  | "TOPUP"
+  | "CARD_PURCHASE"
+  | "MERCHANT_PAY_OUT"
+  | "MERCHANT_SALE_IN"
+  | "REMIT_IN_CLAIM";
 
 export const TX_TYPE_LABELS: Record<TxType, string> = {
   TRANSFER_OUT: "تحويل صادر",
@@ -83,6 +90,12 @@ export const TX_TYPE_LABELS: Record<TxType, string> = {
   SAVING_OUT: "سحب من الحصالة",
   FX_EXCHANGE: "تحويل بين المحافظ",
   SYSTEM_ADJUST: "تسوية نظامية",
+  BILL_PAY: "سداد فاتورة",
+  TOPUP: "شحن رصيد",
+  CARD_PURCHASE: "شراء كرت شبكة",
+  MERCHANT_PAY_OUT: "دفع لتاجر (QR)",
+  MERCHANT_SALE_IN: "مبيعات نقطة البيع",
+  REMIT_IN_CLAIM: "استلام حوالة واردة",
 };
 
 export type KycStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -148,6 +161,11 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "CWD-003": "عوم الوكيل غير كافٍ لإتمام العملية",
   "REM-001": "لا يمكن إلغاء هذه الحوالة",
   "SRV-001": "الخدمة غير متاحة حالياً",
+  // المرحلة 2 — خدمات الدفع والحوالات الواردة
+  "BIL-001": "مزوّد الفاتورة غير معروف أو معطّل",
+  "TOP-001": "مشغّل أو فئة شحن غير مدعومة",
+  "MRC-001": "التاجر غير مسجل في شبكة الدفع",
+  "RIN-001": "رمز الحوالة الواردة غير صحيح أو منتهي الصلاحية",
   "SYS-001": "خطأ غير متوقع — حاول مجدداً",
   // إضافة 8-a: رمز RBAC للصلاحيات الإدارية
   "RBAC-001": "لا تملك صلاحية لهذا الإجراء",
@@ -495,6 +513,12 @@ export interface AuthResultView {
   needsPin: boolean;
   notice: string | null;
   noticeCode: string | null;
+  /**
+   * رمز الجلسة (القناة الاحتياطية iframe-safe): يخزنه العميل في
+   * localStorage ويرسله عبر ترويسة x-sw-session مع كل طلب — لأن كوكي
+   * SameSite=Lax قد يُحجب في سياق إطار معاينة خارجي.
+   */
+  sessionToken?: string;
 }
 
 /** نتيجة عملية مالية م keyed بIdempotency — replayed=true عند إعادة التشغيل */
@@ -633,4 +657,108 @@ export interface RemittancePayPreviewView {
 
 export interface RemittancePayResultView {
   remittance: RemittanceView;
+}
+
+// ============ إضافات المرحلة 2 (الخدمات — 9-b/9-c) ============
+
+/** فئة فاتورة */
+export type BillerCategory = "ELECTRIC" | "WATER" | "TELECOM" | "INTERNET" | "GOV";
+export const BILLER_CATEGORY_LABELS: Record<BillerCategory, string> = {
+  ELECTRIC: "الكهرباء",
+  WATER: "المياه",
+  TELECOM: "الاتصالات",
+  INTERNET: "الإنترنت",
+  GOV: "خدمات حكومية",
+};
+
+/** مزوّد فواتير (كتالوج خادمي ثابت) */
+export interface BillerView {
+  code: string;
+  name: string;
+  category: BillerCategory;
+  /** طرق الدفع المتاحة للعملة */
+  currency: CurrencyCode;
+  /** رسوم ثابتة بالوحدات الفرعية */
+  feeMinor: number;
+  /** أقسام الرقم/الحساب (طول كل قسم) — للتحقق قبل الإرسال */
+  accountFormatHint: string;
+  /** يسمح بمبالغ مفتوحة إن true، أو حزمة ثابتة إن false */
+  openAmount: boolean;
+}
+
+/** عرض فاتورة مقدّر (قبل الدفع): الرصيد المستحق إن توفر */
+export interface BillPreviewView {
+  biller: BillerView;
+  accountNumber: string;
+  /** null = المزوّد لا يدعم الاستعلام الفوري في Alpha (يُدخل المبلغ يدوياً) */
+  dueAmountMinor: number | null;
+  dueLabel: string | null;
+}
+
+/** نتيجة سداد فاتورة */
+export interface BillPayResultView extends TxResultView {
+  billerName: string;
+  accountNumber: string;
+}
+
+/** مشغّل شحن رصيد */
+export interface TopupOperatorView {
+  code: string;
+  name: string;
+  prefix: string;
+  /** فئات الشحن المتاحة بالوحدات الفرعية */
+  packagesMinor: number[];
+  feeMinor: number;
+}
+
+/** كرت بيانات/شبكة قابل للشراء */
+export interface CardProductView {
+  code: string;
+  operator: string;
+  name: string;
+  /** حجم الباقة (مثال: "10 GB / 30 يوم") */
+  size: string;
+  priceMinor: number;
+  currency: CurrencyCode;
+}
+
+/** تاجر عام (للبحث/الدفع عبر الرمز) */
+export interface MerchantPublicView {
+  phone: string;
+  shopName: string;
+  category: string;
+  governorate: string;
+  /** رمز الدفع SWPAY:<phone> */
+  qrPayload: string;
+}
+
+/** نتيجة مسح/إدخال رمز الدفع — تفاصيل التاجر قبل تأكيد الدفع */
+export interface QrPayPreviewView {
+  merchant: MerchantPublicView;
+}
+
+/** نتيجة دفع لتاجر */
+export interface QrPayResultView extends TxResultView {
+  merchantName: string;
+}
+
+/** حوالة واردة بانتظار الاستلام (من شبكات الصرافة) */
+export interface InboundRemittanceView {
+  ref: string;
+  networkName: string;
+  senderName: string;
+  amountMinor: number;
+  currency: CurrencyCode;
+  feeMinor: number;
+  /** 6 أرقام للمطالبة */
+  claimCode: string;
+  status: "PENDING" | "CLAIMED" | "EXPIRED";
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** نتيجة استلام حوالة واردة */
+export interface RemitInClaimResultView extends TxResultView {
+  networkName: string;
+  senderName: string;
 }

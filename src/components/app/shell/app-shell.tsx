@@ -48,7 +48,7 @@ export function AppShell() {
   const showNav = role === "CUSTOMER" && ROOT_SCREENS.includes(screen);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#FAF9F6]">
+    <div className="flex h-full min-h-0 flex-col bg-[#FAF9F6] pt-[env(safe-area-inset-top)] lg:pt-0">
       <FakeStatusBar />
       <main className="gold-scroll relative min-h-0 flex-1 overflow-y-auto">
         <ScreenRouter />

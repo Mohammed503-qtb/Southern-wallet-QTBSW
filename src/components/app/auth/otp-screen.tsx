@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { useAppStore } from "@/lib/app-store";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, saveSessionToken } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { OTPInput } from "@/components/app/ui/otp-input";
 import { PrimaryActionButton } from "@/components/app/ui/primary-action-button";
@@ -67,6 +67,7 @@ export function OtpScreen() {
       const data = await api.post<{
         user: { id: string; role: string; status: string };
         needsPin: boolean;
+        sessionToken?: string;
       }>("/api/auth/verify", {
         phone: pendingOtp.phone,
         code: value,
@@ -78,6 +79,7 @@ export function OtpScreen() {
             }
           : {}),
       });
+      if (data.sessionToken) saveSessionToken(data.sessionToken);
       setPendingOtp(null);
       setRegisterDraft(null);
       if (data.needsPin) {

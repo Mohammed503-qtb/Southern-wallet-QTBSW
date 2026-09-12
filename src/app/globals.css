@@ -185,3 +185,48 @@ html {
     background: #ffffff !important;
   }
 }
+
+/* ============================================================
+   إضافات 9-d — التلميع الإنتاجي (إضافات فقط، لا حذف لأي نمط قائم)
+   ============================================================ */
+
+/* حلقة تركيز موحدة ذهبية للتفاعلات التي لا تحدد حلقة خاصة بها
+   (داخل @layer base مع :where() صفري الوزن حتى تبقى أدوات Tailwind
+   مثل outline-none/outline-2 هي المتغلبة في أي مكوّن حدد أسلوبه بنفسه) */
+@layer base {
+  :where(a, button, [role="button"], [role="tab"], [role="switch"],
+    [role="checkbox"], [role="radio"], [role="option"], [tabindex],
+    input, select, textarea, summary):focus-visible {
+    outline: 2px solid #C9A227;
+    outline-offset: 2px;
+  }
+}
+
+/* احترام تفضيل تقليل الحركة (إمكانية وصول) */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* منع سحب التحديث (pull-to-refresh) وتضخيم الخط في الوضع الأفقي
+   — سلوك تطبيق أصلي داخل وضع standalone */
+html {
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* لون تحديد النص بهوية الجنوب */
+::selection {
+  background: #C9A227;
+  color: #0B0B0C;
+}

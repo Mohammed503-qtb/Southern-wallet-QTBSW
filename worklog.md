@@ -232,3 +232,155 @@ Stage Summary:
 - **MVP المرحلة 1 (Internal Alpha) مكتمل ويعمل**: 38 مسار API مختبرة (بما فيها Idempotency/AC-02/03/06/07)، 26 شاشة عميل (12 مال + 13 حساب + docs) ولوحات 4 أدوار (ADMIN/COMPLIANCE/SUPPORT/AGENT)، Seed واقعي (دفاتر متوازنة، سجل 30 يوماً، حسابات تجريبية 770000001/2/3/10/770100001-3).
 - سيناريوهات القبول المؤكدة: AC-01 (إيداع وكيل→محفظة→دفاتر)، AC-02 (رصيد غير كافٍ TXN-001)، AC-03 (إعادة Idempotency نفس المرجع)، AC-04 (مفتاح إعادة الاستخدام في api.ts)، AC-05 (تحرير الرسوم M10 عبر القواعد)، AC-06 (حدود TXN-002 بتفاصيل)، AC-07 (GEO-001 لحساب صنعاء).
 - الحالة: التطبيق جاهز للعرض على المسار / — Alpha الداخلي بنظام نقدي مغلق تجريبي (قرار D-01).
+
+---
+Task ID: 9-0 (orchestrator)
+Agent: Main Agent (Z.ai Code)
+Task: افتتاح المرحلة النهائية 9 (التسليم التجاري): إصلاح جلسة الاعتماد الحرج + عقد خدمات المرحلة 2، تمهيداً للتنفيذ المتوازي 9-b/9-c/9-d
+
+Work Log:
+- تشخيص خطأ حرج من dev.log: POST /api/auth/demo-login 200 ثم GET /api/me 401 متكرراً — السبب: كوكي SameSite=Lax يُحجب في سياق إطار المعاينة (طرف ثالث)، لا خلل في الخلفية (curl أكّد سلامة الكوكي).
+- إصلاح جذري (قناة مزدوجة iframe-safe): auth.ts يعيد رمز الجلسة من createSession ويقرأه من ترويسة x-sw-session بجانب الكوكي؛ verify + demo-login يعيدان data.sessionToken؛ عميل api.ts يخزنه في localStorage (sw_token) ويرسله مع كل طلب؛ حفظه في demo-login.tsx وotp-screen.tsx؛ مسحه في logout. اختبار curl كامل: ترويسة فقط → 200 (كانت 401)، logout عبر الترويسة → 401 بعدها ✓.
+- عقد المرحلة 2 (إضافات فقط): TxType +6 (BILL_PAY, TOPUP, CARD_PURCHASE, MERCHANT_PAY_OUT, MERCHANT_SALE_IN, REMIT_IN_CLAIM) مع ملصقاتها؛ USER_ROLES + MERCHANT؛ أنواع عرض جديدة (BillerView, BillPreviewView, BillPayResultView, TopupOperatorView, CardProductView, MerchantPublicView, QrPayPreviewView/ResultView, InboundRemittanceView, RemitInClaimResultView)؛ رموز أخطاء BIL-001/TOP-001/MRC-001/RIN-001.
+- إصلاح خلل منطقي: "أبين" كانت في قائمتي داخل النطاق وخارجه معاً — أزيلت من OUT_OF_SCOPE_EXAMPLES.
+- التوجيه: +8 مفاتيح شاشات (bills, bill-pay, topup, cards, my-qr, pay-merchant, merchant-pos, remit-in) في app-store + screen-router (مع 8 ملفات شاشات مؤقتة سيستبدلها الوكلاء)؛ bootstrap: دور MERCHANT يبقى في تطبيق الهاتف؛ service-catalog: الخدمات الخمس أصبحت group="money" بوجهات شاشات فعلية.
+- bun run lint نظيف، GET / = 200.
+
+Stage Summary:
+- الاعتماد يعمل الآن في أي سياق (كوكي + ترويسة) — أساس كل التحقق القادم.
+- العقد المشترك محدث مسبقاً لتجنّب تضارب الوكلاء المتوازيين؛ الملفات المشتركة (api-types, app-store, screen-router, service-catalog, api.ts, auth.ts) **مغلقة** أمام 9-b/9-c/9-d إلا بإذن صريح.
+- التوزيع المتوازي: 9-b (فواتير+شحن+كروت) ∥ 9-c (دفع تاجر QR+حوالات واردة+بوابة التاجر) ∥ 9-d (PWA+إمكانية وصول+تلميع إنتاجي).
+- عند اكتمال كل وكيل: يفعّل مفاتيح ServiceState الخاصة به فقط (BILLS/TOPUP/NETWORK_CARDS → 9-b؛ MERCHANT_PAY/REMITTANCE_IN → 9-c).
+---
+Task ID: 9-d
+Agent: general-purpose (9-d)
+Task: التلميع الإنتاجي والتغليف PWA — أيقونات ومانيفست وMetadata + تدقيق جودة الواجهة وإصلاحات safe-area/focus/aria في الملفات المملوكة فقط
+
+Work Log:
+- قراءة worklog.md كاملاً (الخطوات 1–9-0) والتزام خريطة الملكية: لم يُلمس أي ملف من ملفات 9-b/9-c أو الملفات المشتركة المغلقة.
+- **PWA — الأيقونات**: كتابة `scripts/gen-icons.ts` (مجلد scripts جديد) وتشغيله بـ bun مع sharp 0.34.5: قصّ الهوامش البيضاء من `public/logo.jpg` → بلاطة الشعار 423×407، ثم تركيب على خلفية بيضاء متوسطة بتصغير Lanczos:
+  - `public/icons/icon-192.png` و`icon-512.png` (purpose any): محتوى 72% + حواف دائرية بنصف قطر 22.5% (زوايا شفافة).
+  - `public/icons/maskable-192.png` و`maskable-512.png`: full-bleed أبيض بمحتوى 56% (القطر 0.56×√2≈0.79 < 0.80 المنطقة الآمنة الدائرية) — يصمد أي قص من المشغّل.
+  - `public/icons/apple-touch-icon.png` 180×180 مصمتة بلا شفافية (iOS يقص الزوايا بنفسه)، محتوى 66%.
+  - `public/favicon.ico`: حاوية ICO بصيغ PNG بأحجام 16+32+48 (محتوى 94% للقراءة الدقيقة).
+  - تحقق جودة عبر VLM على لوحة تماس على خلفية شطرنجية: حواف حادة بلا ضجيج JPEG، توسيط سليم، زوايا دائرية سليمة، شفافية حيث يجب.
+- **PWA — المانيفست**: `public/manifest.json`: name «محفظة الجنوب»، short_name «الجنوب»، وصف عربي موجز، id/start_url/scope = «/»، display standalone، orientation portrait، dir rtl، lang ar، theme_color/background_color #0B0B0C، icons ×4 بأغراض any/maskable منفصلة (أفضل ممارسة من دمجها في أيقونة واحدة). قرار: **لا shortcuts** (الديب لينك محصور بـ/ فلا معنى لاختصارات تفتح الجذر) و**لا screenshot hints** (الشاشات خلف دخول والمسار الوحيد المسموح /).
+- **PWA — layout.tsx**: manifest + appleWebApp (capable + statusBarStyle black-translucent + title) + icons (favicon.ico 48 + icon-192 + apple-touch 180) + formatDetection telephone:no + عنوان/وصف عربي محدّث «محفظة الجنوب — محفظة إلكترونية لجنوب اليمن (Alpha تجريبي)» + viewport أصبح بـ viewportFit:cover (ضروري لعمل env() للمناطق الآمنة) مع themeColor مزدوج عبر prefers-color-scheme (فاتح #F7F6F3 / داكن #0B0B0C — globals.css فيه رموز .dark دون تفعيل فعلي، فازدواج الوسم آمن ومستقبلي). تحقق curl لكل الوسوم: manifest + theme-color ×2 + apple-mobile-web-app + format-detection + روابط الأيقونات.
+- **قرار: لا Service Worker** — لأسباب: (1) بيئة dev دائمة مع Fast Refresh والكاش سيقدّم واجهة قديمة أثناء التطوير النشط لوكلاء متوازيين، (2) قيود المسار الوحيد / يمنع تسجيل SW بنطاق آمن مستقل، (3) معايير تثبيت Chrome الحديثة تتحقق بالمانيفست+الأيقونات على localhost دون SW. التأجيل موثق للـBeta مع SW + Workbox عند وجود نطاق إنتاجي.
+- **تدقيق جودة الواجهة عبر agent-browser**:
+  - سطح المكتب 1440×900: دخول سريع بأحمد 770000001 من لوحة الهوية يعمل، الرئيسية ببيانات حية، لوحة الهوية 844px متطابقة مع قاعدة إطار الهاتف (bottom=872 لكليهما) والتذييل مثبت أسفل اللوحة بلا فجوة، لا تمرير أفقي، صفر أخطاء صفحة. VLM أكّد: التذييل محاذٍ، لا عيوب بصرية، هوية أسود/ذهبي بلا أزرق.
+  - الجوال 390×844: صفر تمرير أفقي على الرئيسية والخدمات والسجل والإشعارات وحسابي وتدفق التحويل وشاشة الدخول وSheet الحسابات التجريبية، أزرار التنقل 78×64 (>44px)، لوحة الأرقام كلها ≥44، زر الإجراء 52px. دخول عبر Sheet الجوال + تسجيل خروج + إعادة دخول يعملون.
+  - aria: الأزرار الأيقونية كلها موسومة («رجوع»، «حذف رقم»، «إخفاء الرصيد»)، nav بـaria-label وaria-current، شارة الإشعارات aria-label.
+  - splash: نظيف أثناء العرض (لا وميض محتوى غير منسق) — راجع الملاحظة 1 أدناه للانتقال.
+- **الإصلاحات (في ملفاتي فقط)**:
+  - `globals.css` (**إضافات فقط، صفر حذف**): حلقة تركيز ذهبية موحدة `:where(…):focus-visible { outline: 2px solid #C9A227; outline-offset: 2px }` داخل @layer base (كي تبقى أدوات Tailwind مثل outline-none/outline-2 هي المتغلبة في المكونات التي حددت أسلوبها) — تحقق computed = 2px solid rgb(201,162,39) + تأكيد بصري VLM للحلقة الذهبية على تبويب السجل؛ احترام prefers-reduced-motion (إيقاف الحركات والانتقالات)؛ `overscroll-behavior-y: contain` + `text-size-adjust: 100%` (منع pull-to-refresh وتضخيم الخط الأفقي كسلوك تطبيق أصلي)؛ لون تحديد نص ذهبي ::selection.
+  - `app-shell.tsx`: `pt-[env(safe-area-inset-top)] lg:pt-0` — إزاحة المحتوى تحت شريط حالة standalone الشفاف (black-translucent) على الجوال الحقيقي دون مساس بإطار سطح المكتب.
+  - `app-frame.tsx`: تحديث جملة متقادمة في لوحة الهوية («الشاشات المالية تُنجز تباعاً في نطاق 8-c/8-d» → صياغة إنتاجية عن خدمات Beta الموسعة).
+  - `bottom-nav.tsx`: **بلا تعديل** — كان مطابقاً أصلاً (pb env(safe-area-inset-bottom)، min-h-11، aria-label، aria-current، شارة aria).
+- **ملاحظة تشغيلية**: أثناء الفحوص النهائية وُجد الخادم متوقفاً على 3000 (إعادة تشغيل من وكيل متوازٍ) — أُعيد تشغيله بـ bun run dev (نسخة واحدة PID 6550) وتحقق 200 بعدها.
+- **التحقق النهائي**: `bun run lint` نظيف (exit 0). GET / = 200. /manifest.json يُخدَّم JSON سليماً (name/short_name/4 أيقونات). favicon.ico 200 (image/x-icon) وكل الأيقونات 200. جولة متصفح ختامية: الدخول يعمل، الرئيسية تُحمّل، التنقل السفلي يعمل على الجوال وسطح المكتب، العنوان محدّث، لا تمرير أفقي، لا أخطاء صفحة. لقطة ختامية للهوية على سطح المكتب + VLM: كل شيء سليم.
+
+Stage Summary:
+- المخرجات: حزمة PWA كاملة (6 ملفات أصول + manifest + metadata Next.js متكاملة + favicon.ico) + سكربت توليد قابل لإعادة التشغيل + إصلاحات جودة (focus-visible ذهبي موحد، safe-area أعلى، reduced-motion، منع pull-to-refresh) في الملفات المملوكة حصراً.
+- التطبيق قابل للتثبيت الآن كـ PWA على Chrome/Android وiOS (إضافة للشاشة الرئيسية) دون Service Worker (مؤجل للـBeta وموثق السبب).
+- **ملاحظات للمنسق (لم تُصلح — خارج ملكيتي)**:
+  1. انتقال splash→الرئيسية يُظهر إطاراً فاتحاً شبه فارغ (~300ms) لأن `sw-fade-in` في screen-router/app-styles يبدأ من opacity:0 بعد قطع الشاشة السوداء — تحسين مقترح: crossfade لإخراج الـsplash في ملفات shell-router لاحقاً (ملف 8-0/8-b).
+  2. أثناء عملي ظهرت أخطاء ترجمة عابرة من `bill-pay-screen.tsx:513` (ملف 9-b قيد الكتابة لحظتها) في وضع dev فقط — التطبيق بقى يعمل وكل الشاشات الأخرى سليمة.
+  3. أزرار الإجراء الأساسية التي تستعمل `focus-visible:outline` دون لون ترث outline-color من `--ring` (رمادي 50%) — يمكن رفعها للذهبي في مكوّن مشترك مستقبلاً.
+  4. شارة إشعارات التنقل السفلي تُعلن كجزء من اسم الزر («10الإشعارات») — تحسين صياغة اختياري لاحق.
+- الحالة: **9-d مكتمل — التغليف PWA والتلميع الإنتاجي جاهزان، كل الفحوص خضراء (lint/curl/browser/VLM)، بلا أي كسر لوظيفة قائمة وبلا لمس ملفات الوكلاء المتوازيين.**
+---
+Task ID: 9-b
+Agent: general-purpose (9-b)
+Task: خدمات المرحلة 2 الثلاث كاملة (خلفية + واجهة): سداد الفواتير BILLS، شحن رصيد الهاتف TOPUP، كروت الشبكة NETWORK_CARDS
+
+Work Log:
+- قراءة worklog.md كاملاً (خصوصاً Task 9-0: قناة x-sw-session وعقد المرحلة 2) + MVP_CONTRACT.md (الغلاف/الأخطاء/Idempotency/محرك الدفتر §6) + دراسة الأنماط الذهبية حرفياً: مسارات transfers/remittances (route، requireUser، assertNotFrozen، assertInScope، verifyPin خارج المعاملة، FeeRule+computeFee، assertDailyLimit، postEntries Σ=0، Idempotency كامل، notify) وشاشات remittance-create/transfer (form→review→pin→result/fail، PinStep، ReviewCard، ReceiptCard، postMoney/AC-04، refreshMe، toast) وapi-hooks وmoney-shared.
+- إنشاء src/lib/server/payments-catalog.ts (ملك 9-b): 12 مزوّداً يمنياً واقعياً في 5 فئات + 4 مشغلين (You/MTN/Sabafon/YTelecom ببادئاتهم) بفئات شحن ثابتة + 15 باقة كروت بيانات + دوال البحث/التحقق + مستحق محاكى **حتمي** (hash المزود:الرقم → 3,000..25,000 ر.ي) + dueLabel + generateCardCode (11 خانة من أبجدية بلا لبس) + جلب الرسوم الحية من FeeRule (دون مس money.ts المغلق).
+- 5 مسارات API جديدة بنمط transfers الحرفي (كلها +Idempotency-Key وPIN وحدود وΣ=0):
+  • GET /api/bills → BillerView[] بالرسوم الحية (50 ر.ي) + وضع ?ref= لاسترجاع metadata فاتورة.
+  • POST /api/bills/preview → تحقق صيغة → BillPreviewView بمستحق حتمي + dueLabel (BIL-001 للمجهول).
+  • POST /api/bills/pay → معاملة BILL_PAY (BP-…): [MAIN DEBIT a+f]+[FEE CREDIT f]+[SUSPENSE CREDIT a] → metadata {billerCode, billerName, accountNumber, dueAmountMinor, dueLabel} + notify + writeAudit → BillPayResultView. قيدان: المبلغ ≤ المستحق، وغير المفتوح (اتصالات/إنترنت/حكومي) سداد كامل فقط.
+  • GET/POST /api/topup → مشغلون بفئات ورسوم (15 ر.ي)؛ POST يتحقق بادئة الرقم للمشغل + الفئة (TOP-001) → معاملة TOPUP (TU-…) بmetadata {phone, operatorCode, operatorName}.
+  • GET/POST /api/cards → باقات (+feeMinor حي)؛ POST يولّد **رمز كرت 11 خانة** في metadataJson ويكشفه في الاستجابة والإشعار → معاملة CARD_PURCHASE (NC-…) — الرمز يُسترجع لاحقاً فقط عبر ?ref=.
+- استثناءان نظاميان فقط على ملفات غير ملكي: (1) transactions/route.ts — إضافة BILL_PAY/TOPUP/CARD_PURCHASE إلى VALID_TYPES (الفلتر types= قائم) بلا مس سلوك؛ (2) transaction-details-screen.tsx — إضافة فقط: جلب metadata عبر ?ref= وصفوف «رقم الحساب/الرقم المشحون/الباقة» + بطاقة CardCodeBox داكنة بزر نسخ وتحذير لعمليات الكروت.
+- prisma/seed-phase2-payments.ts (idempotent بمراجع ثابتة وفحص وجود): FeeRules الثلاثة YER (50/15/10 ثابتة) + 3 معاملات تاريخية لأحمد عبر postEntries (فاتورة كهرباء 5,000+50، شحن MTN 1,000+15، كرت يُو 9,000+10 برمز مولّد) بإشعارات + **ServiceState: BILLS/TOPUP/NETWORK_CARDS → ON «خدمة Beta مفعلة»** + ledgerCheck نهائي. شُغّل مرتين (الثانية تخطّت الكل ✓) — رصيد أحمد YER بعد البذرة 220,397.
+- استبدال الشاشات المؤقتة الأربع بالكامل (نمط الشاشات الذهبية: loading/تعطيل بdisabledReason/InlineErrorBanner/ErrorState بالكود/PinStep/ReceiptCard/SuccessMark/postMoney/refreshMe/toast):
+  • bills-screen: بحث + أقسام الفئات الخمس بأيقونات + «آخر مدفوعاتك» (types=BILL_PAY — النقر يفتح المزود مع تمليء الحساب).
+  • bill-pay-screen: إدخال الحساب (تلميح الصيغة، تمليء من آخر المدفوعات) → استعلام → بطاقة المستحق + خيارا المستحق/مخصص (AmountPad) → مراجعة → PIN → إيصال.
+  • topup-screen: شبكة المشغلين → «لهذا الهاتف»/«رقم آخر» (تحقق البادئة) + فئات chips → مراجعة → PIN → إيصال.
+  • cards-screen: باقات بالمشغل → مراجعة (الرسوم الحية) → PIN → BigCodeCard للرمز بزر نسخ وQR وتحذير «لن يظهر الرمز مرة أخرى إلا في تفاصيل العملية» + إيصال.
+- التحقق: bun run lint نظيف؛ curl (بجلسة x-sw-session): كتالوجات ✓، preview صحيح/خطأ/BIL-001 ✓، حتمية المستحق ✓، pay + replay نفس المرجع + TXN-003 ✓، PIN-001/TOP-001/TXN-001 (فاطمة)/TXN-002 (فاطمة بعد تحويل حقيقي 40,000)/GEO-001 (سامي) ✓، شراء كرت + replay = نفس الرمز ✓، ?ref= الثلاثة ✓، فلتر types ✓، ledger-check balanced=true (147 قيداً/52 مجموعة) ✓.
+- متصفح agent-browser (سطح مكتب + جوال 390px): دخول أحمد → الخدمات (الثلاث متاحة بلا «قريباً») → سداد فاتورة كاملة حتى الإيصال وتفاصيلها برقم الحساب → شحن 500 لرقمه → شراء كرت سبأفون → رمز الكرت بزر نسخ → التفاصيل تعرض نفس الرمز المخزن (تحقق مطابقة مع DB) → جوال بلا تجاوز أفقي → فحص VLM للقطات: RTL سليم، هوية أسود/ذهبي، لا أزرق. اللقطات في worklog-attachments/9b/ (9 لقطات).
+- ملاحظات تشغيل: الخادم توقف مرة أثناء الجلسة (عملية dev قُتلت خارجياً — dev.log خالٍ من الأخطاء) فأُعيد تشغيله bun run dev؛ وFast Refresh من تعديلات الوكلاء المتوازيين أعاد التوجيه للرئيسية مرتين (سلوك dev معروف بلا أثر وظيفي).
+
+Stage Summary:
+- المخرجات: خدمات المرحلة 2 الثلاث تعمل فعلياً E2E — 5 مسارات API بقيود مزدوجة Σ=0 (وجهة المبلغ SUSPENSE:YER بانتظار تسوية المزود — قرار 1) + بذرة idempotent (رسوم حقيقية من FeeRule قابلة للتحرير بM10 + سجل تاريخي + تفعيل ServiceState) + 4 شاشات كاملة + إثراء تفاصيل العملية بالأنواع الجديدة.
+- قرارات موثقة: (1) SUSPENSE وجهة مبلغ الخدمات لا FEE؛ (2) بادئات مراجع جديدة BP/TU/NC؛ (3) استرجاع رمز الكرت/الـmetadata عبر ?ref= على مسارات 9-b (transactions/[ref] وapi-types مغلقان — الحل الوحيد المتوافق بملكية الملفات)؛ (4) الرسوم تُقرأ حية في الواجهة لا قيم ثابتة؛ (5) مزودات سداد كامل (اتصالات/إنترنت/حكومي) مقابل جزئي (كهرباء/مياه)؛ (6) بطاقة الخدمة في الرئيسية تفتح Sheet «متاحة» بدل التنقل — سلوك home-screen (ملك 8-b) للخدمات ذات stateKey، والمسار الذهبي عبر شاشة الخدمات يعمل — تُرك للمنسق.
+- الحالة: **9-b مكتمل — الفواتير/الشحن/الكروت مفعلة ON ومختبرة curl + متصفح + دفاتر متوازنة. بانتظار 9-c و9-d لتكملة المرحلة.**
+
+---
+Task ID: 9-c
+Agent: general-purpose (9-c)
+Task: خدمات المرحلة 2 كاملة (خلفية + واجهة): دفع التاجر QR (MERCHANT_PAY + بوابة نقطة البيع) والحوالات الواردة من شبكات الصرافة (REMITTANCE_IN — A-03)
+
+Work Log:
+- قراءة worklog.md كاملاً (خصوصاً 9-0: قناة x-sw-session) + MVP_CONTRACT (الغلاف/الأخطاء/Idempotency) + الأنماط الذهبية (transfers/remittances/agent-remittance-pay + cashflow/money/ledger/pin/idempotency + transfer-screen/remittance-create-screen/agent-queue + عناصر ui المشتركة).
+- **خادم — دفع التاجر**:
+  - `src/lib/server/merchant-catalog.ts` (جديد): سجل التجار التجريبي (فئة/محافظة) + toMerchantPublicView (shopName من user.fullName أساساً والكاتالوج fallback).
+  - `POST /api/merchant/lookup` {payload}: يقبل SWPAY:<phone> أو الرقم؛ أي حالة غير (MERCHANT + ACTIVE + غير scopeRestricted) أو رقم غير موجود → MRC-001 (بلا تسريب وجود الحسابات) → QrPayPreviewView.
+  - `POST /api/merchant/pay` {merchantPhone, amountMinor, note?, pin} + Idempotency-Key: النموذج الثنائي الكامل (جلسة/تجميد/نطاق AC-07/Idempotency/PIN خارج المعاملة ثم $transaction واحدة): رصيد TXN-001 + حدود TXN-002 + FeeRule MERCHANT_PAY → **الرسوم على التاجر** (net = amount − fee، العميل يدفع المبلغ كاملاً) + قيود Σ=0: [MAIN العميل DEBIT a] + [FEE:YER CREDIT f] + [MAIN التاجر CREDIT net] + معاملتان (MERCHANT_PAY_OUT للعميل بfeeMinor=0، MERCHANT_SALE_IN للتاجر بnet وfeeMinor=f، relatedRef) + إشعاران + QrPayResultView (merchantName + balanceMinor). TRF-002 للدفع لنفسه، MRC-001 لتاجر غير صالح، TXN-003 لتعارض Idempotency.
+  - `GET /api/merchant/pos` (دور MERCHANT فقط): إحصاءات اليوم بتوقيت عدن (عدد/حجم إجمالي/صافي/رسوم) + آخر 10 مبيعات + الرصيد المستحق للتسوية (مجموع net لكل MERCHANT_SALE_IN المكتملة) + بيانات رمز الدفع. RBAC-001 لغير التاجر.
+- **خادم — الحوالات الواردة (A-03)** بحيلة تخزين موثقة بلا تعديل المخطط:
+  - `src/lib/server/remit-in-store.ts` (جديد): الحيلة = سجل Remittance عادي لكن senderId=الأدمن المُصدر، receiverName/Phone=المستلم الحقيقي (المطالبة تتحقق user.phone==receiverPhone)، deliveryCode=رمز المطالبة، payingAgentId فارغ دائماً؛ والفرق (الشبكة/المرسل الحقيقي) في **معاملة نائبة PENDING** بنفس المرجع RI-… (userId=المستلم، type=REMIT_IN_CLAIM، counterpartyName=الشبكة، metadataJson {networkName, senderName}) — تحوّل عند المطالبة إلى COMPLETED وتُقيَّد تحتها القيود (نمط R2→G4 نفسه). + mapInboundStatus (PAID→CLAIMED، CANCELLED/EXPIRED→EXPIRED) + toInboundRemittanceView.
+  - `src/lib/server/remit-in-networks.ts` (جديد): كتالوج 5 شبكات صرافة افتراضية + تحقق.
+  - **حارس A-03 في `src/lib/server/cashflow.ts` (تعديل موثق ~20 سطراً في settleRemittance)**: عند غياب معاملة REMITTANCE ممولة بنفس المرجل → حوالة واردة → الإنهاء (انتهاء كسول أو إلغاء إداري M15) يقلب الحالة ويُشعر المستلم **بلا أي استرجاع نقدي** — وإلا لسحب المحرك من SUSPENSE أموالاً لم تدخل النظام (كسر الدفاتر). ضرورة هندسية لأن runLazyExpiry() العالمي يستدعى من مسارات عديدة (G4/M1/M14/…). اختُبرت بحوالة منتهية مُنشأة مباشرة: الحالة EXPIRED + إشعار المستلم + SUSPENSE لم يتغير + balanced=true.
+  - `GET /api/remit-in`: قائمة حوالاتي الواردة (InboundRemittanceView[]) + إنهاء كسول. `POST` {claimCode, pin} + Idempotency: RIN-001 للرمز الخاطئ/المملوك لغيرك (رسالة موحدة بلا تسريب)/المنتهي/المطالب سابقاً → $transaction: قلب Remittance→PAID (بلا payingAgentId) + قلب المعاملة النائبة→COMPLETED (تخزن مفتاح المطالبة للreplay) + قيود Σ=0 **[FX:YER DEBIT a] + [MAIN المستلم CREDIT a]** — التمويل من محفظة FX (النقد الخارجي للاقتصاد المغلق D-01) + إشعار → RemitInClaimResultView.
+  - `GET/POST /api/admin/remit-in` (ADMIN/COMPLIANCE): قائمة كل الواردة بفلاتر حالة؛ POST {beneficiaryPhone, senderName, networkName, amountMinor}: مستلم مسجل (TRF-001 لغيره) + شبكة من الكتالوج + رمز مطالبة 6 أرقام بفحص تفرد + expiresAt 7 أيام + إشعار وصول للمستلم (يشمل الرمز — قناة التسليم في Alpha) + AuditLog (REMIT_IN_ISSUE). feeMinor=0 في Beta (موثقاً).
+- **واجهة الهاتف** (استبدال الملفات المؤقتة):
+  - `my-qr-screen.tsx`: رمز استلامي كبير SWPAY:<هاتفي> + اسمي + مشاركة/نسخ + قسم «الدفع لتاجر»: زر «ادفع بمسح الرمز» (→ scan-qr) + إدخال يدوي لرمز تاجر → pay-merchant.
+  - `pay-merchant-screen.tsx`: استقبال params.payload (lookup تلقائي) أو إدخال يدوي SWPAY → بطاقة معاينة التاجر (QR صغير + اسم/فئة/محافظة/هاتف) → مبلغ (YER فقط مع إظهار ذلك) + ملاحظة → مراجعة (الرسوم على التاجر بارزة) → PinStep → postMoney → إيصال ReceiptCard + مشاهدة العملية + refreshMe. عند MRC-001: زر «تحويل عادي إلى <الرقم>» → transfer (فصل المسارين).
+  - `merchant-pos-screen.tsx`: رمز QR كبير للمتجر (SWPAY من /api/merchant/pos) + نسخ الرمز + 4 بطاقات إحصائية (مبيعات اليوم/الحجم/الصافي/المستحق للتسوية) + آخر 10 مبيعات بTransactionRow + EmptyState أنيقة + ErrorState/Skeleton.
+  - `remit-in-screen.tsx`: شرح الخدمة + حقل رمز المطالبة OTPInput (6 خانات) + قائمة البطاقات (شبكة/مرسل/مبلغ/حالة مخصصة/انتهاء/الرمز) + زر «استلام» على المعلقة يفتح مراجعة+PIN → إيصال الاستلام + refreshMe + تحديث القائمة. EmptyState/ErrorState/Skeleton.
+  - `scan-qr-screen.tsx` (تعديل): المسح والإدخال اليدوي يوجهان دائماً إلى pay-merchant بpayload (وهو يفصل تاجراً/مستخدماً عادياً بزر التحويل العادي) + أزرار محاكاة: العملاء → transfer كما كان، تجاران (متجر الجنوب/صيدلية الشفاء) → pay-merchant.
+  - `home-screen.tsx` (استثناء مسموح — إضافة واحدة فقط): بطاقة «نقطة البيع — رمز دفع متجرك» بارزة أعلى الشاشة عندما role==="MERCHANT" → merchant-pos.
+  - `demo-login.tsx` (استثناء مسموح — عنصر واحد فقط): بطاقة {تاجر 770000020 — متجر الجنوب — نقطة البيع QR}.
+- **لوحة الإدارة**: `sections/remit-in-section.tsx` (جديد بنمط sections الأخرى): KPIs (معلقة/مستلمة/منتهية/قيمة المعلقة) + نموذج إصدار (هاتف المستلم/اسم المرسل/شبكة select/مبلغ) عبر useActionRunner مع toast بالرمز + فلاتر حالة + بطاقات القائمة. تعديل أدنى: `console-nav.ts` (مفتاح remit-in + عنصر Landmark + إدراج في ADMIN وCOMPLIANCE) و`console-shell.tsx` (import + case واحد — ملاحظة: مفتاح التبديل في console-shell لا console-app الذي لم يحتج أي تغيير).
+- **Seed**: `prisma/seed-phase2-merchant.ts` (جديد، idempotent — لا يمسح شيئاً): تاجران 770000020 «متجر الجنوب للأغذية» (عدن، بقالة) و770000021 «صيدلية الشفاء» (لحج، أدوية) بMAIN الثلاث + FeeRule MERCHANT_PAY YER (1% بحد أدنى 20) + حوالتان واردتان PENDING لأحمد (552214 «الفلوس للصرافة» 85,000 تنتهي بعد يومين، 771903 «الخليج للصرافة» 120,000 بعد 6 أيام) بمعاملتين نائبتين + إشعارا وصول + معاملة بيع تاريخية (أحمد→متجر الجنوب 12,500 برسوم 125) عبر postEntries Σ=0 + تفعيل ServiceState: MERCHANT_PAY وREMITTANCE_IN → ON. **اكتشاف وتوثيق تعارض**: الهاتفان 770000020/21 كانا وكيلين إضافيين في seed.ts الأساسي (صرافة المكلا/وكيل الوفاق) — يحوّلهما الـseed كاملاً (fullName للمتجر + حذف AgentProfile وعومهما بلا قيود دفترية أصلاً بعد تحقق تحوطي) — وكلاء Seed يصبحون 10.
+- **التحقق**:
+  - `bun run lint`: نظيف (قبل وبعد كل شيء).
+  - curl بقناة x-sw-session (22+ فحصاً): lookup تاجر ناجح + MRC-001 (فاطمة/رقم غير موجود) + MRC-001 → دفع ناجح 15,000 + replay=true بنفس المفتاح + TXN-003 بحمولة مختلفة + TXN-001 لرصيد غير كافٍ + دخول التاجر → POS يعيد إحصاءات صحيحة (4 مبيعات، حجم 36,000، صافي 35,640، رسوم 360، مستحق 35,640) + RBAC-001 لPOS من غير تاجر + مدير يصدر حوالة واردة (رمز 291745) + قائمة المدير + قائمة أحمد (3) + claim برمز خطأ RIN-001 ثم الصحيح 552214 (+85,000 للرصيد بالضبط) + إعادة المطالبة RIN-001 + replay المطالبة=true + RBAC-001 لغير الإدارة + فحص الدفاتر balanced=true (149 قيداً/53 مجموعة بعد كل العمليات) + رجوعية بوابات الوكيل/المعلّق/نظرة عامة سليمة بعد حارس cashflow + قائمة الوكلاء 10 بعد التحويل.
+  - Agent Browser (جلسة معزولة): دخول أحمد → الخدمات → «دفع التاجر» → my-qr → إدخال 770000020 → معاينة التاجر (اسم/فئة/محافظة/رصيد YER) → مبلغ 3,500 → مراجعة (الرسوم على التاجر) → PIN → إيصال SW-…-V4AUD9WR + الرصيد نقص → الحوالات الواردة → بطاقة الخليج 771903 → مراجعة الاستلام → PIN → «تم استلام الحوالة» +120,000 → الرصيد زاد بالضبط → دخول تاجر 770000020 (بطاقة التاجر) → الرئيسية تعرض بطاقة نقطة البيع → POS: QR كبير SWPAY:770000020 + الإحصاءات + 4 مبيعات حية → دخول مدير → قسم «الحوالات الواردة» في اللوحة → إصدار حوالة جديدة (RI-…-KN3GAC3D برمز 660688 لمحمد 770000004) → جوال 390px: remit-in وscan-qr وpay-merchant بلا تمرير أفقي (scrollWidth=390) والمسار التجريبي للتاجر يعمل.
+  - آخر 40 سطراً من dev.log: لا أخطاء (الوحيد EADDRINUSE قديم من محاولة تشغيل ثانٍ — 9-b) وصفر استجابات 500.
+
+Stage Summary:
+- المخرجات: 10 ملفات خادم/شاشات جديدة + 5 تعديلات أدنى موثقة (cashflow حارس A-03، scan-qr التوجيه، home بطاقة POS، demo-login بطاقة تاجر، console-nav/shell قسم واحد) + seed مرحلة 2 idempotent.
+- القرارات المعمارية الموثقة: (1) الرسوم على التاجر تحسم من مبلغه (العميل يدفع المبلغ كاملاً)؛ (2) تمويل الحوالات الواردة من محفظة FX:YER (النقد الخارجي للاقتصاد المغلق D-01) بدل SUSPENSE غير الممول؛ (3) معاملة نائبة REMIT_IN_CLAIM PENDING بنفس مرجع الحوالة الواردة تحمل الشبكة/المرسل (تقلب COMPLETED عند المطالبة) — أتاحت فصلاً نظيفاً عن حوالات R2 العادية وحارس cashflow؛ (4) حد معروف: MERCHANT_PAY_OUT لا يُضاف لأنواع الحدود المحسوبة في money.ts (ملف مشترك مغلق) — يفحص المبلغ فقط؛ (5) قناة G4 (دفع وكيل برمز) ستفشل ذرياً لو أُدخل فيها رمز مطالبة وارد (لا التباس عملياً في Alpha).
+- الحالة: **خدمتا 9-c (دفع التاجر QR + الحوالات الواردة) مكتملتان خلفيةً وواجهةً ومختبرتان E2E — الدفاتر متوازنة بعد كل العمليات، وServiceState للمفتاحين ON.**
+
+---
+Task ID: 9-e (orchestrator — التكامل النهائي والتسليم)
+Agent: Main Agent (Z.ai Code)
+Task: دمج نتائج الوكلاء المتوازيين 9-b/9-c/9-d + إصلاحات التكامل + التحقق E2E الشامل للتسليم التجاري النهائي
+
+Work Log:
+- مراجعة تقارير الوكلاء الثلاثة (كلها خضراء): 9-b (فواتير/شحن/كروت: 5 مسارات + 4 شاشات + seed متوازن)، 9-c (دفع تاجر QR + حوالات واردة + بوابة تاجر + قسم إداري + seed)، 9-d (PWA كامل: manifest + 5 أيقونات + layout + focus/safe-area + تدقيق جودة).
+- إصلاحات التكامل الثلاثة:
+  (1) home-screen: الخدمات ذات stateKey كانت تفتح Sheet تفسيرياً حتى وهي ON — الآن تتنقل مباشرة عند state=ON (الفواتير/شحن رصيد من الرئيسية).
+  (2) screen-router: مفتاح التركيب صار يشمل user.id — إصلاح خلل بيانات عالقة عند تبديل المستخدم (كانت رئيسية التاجر تعرض معاملات العميل السابق). تحقق: معاملات التاجر بعد التبديل = MERCHANT_SALE_IN صحيحة.
+  (3) app-styles: sw-fade-in يبدأ من opacity 0.3 بدل 0 (220ms) — زوال وميض الإطار الفارغ بين الشاشات.
+- التحقق E2E الشامل عبر Agent Browser (desktop + mobile 390px):
+  - سداد فاتورة مياه عدن كاملة: استعلام (مستحق حتمي 20,125) → سداد كامل → مراجعة → PIN → إيصال ✓
+  - استلام حوالة واردة (رمز 291745): بطاقة → تأكيد PIN → +60,000 ر.ي مع إيصال «من حمد صالح باعوم عبر برقة للصرافة» ✓
+  - دفع تاجر QR: إدخال 770000020 → معاينة → مبلغ 2,500 → PIN → إيصال «إلى متجر الجنوب للأغذية» ✓
+  - بوابة التاجر: دخول ببطاقة «تاجر» → بطاقة نقطة البيع في الرئيسية → شاشة POS (مبيعات حية صافية بعد الرسوم) ✓
+  - لوحة الإدارة: قسم الحوالات الواردة → إصدار RI-20260912-6MZ3SPPS (رمز 463527) → استلام محمد عبر API: +18,000 بالضبط ✓
+  - الجوال 390px: صفر تجاوز أفقي (الرئيسية + الخدمات)، التنقل السفلي يعمل، لقطات محفوظة worklog-attachments/final/ ✓
+  - التذييل لاصق، بلا أخطاء Console، dev.log نظيف ✓
+- الفحوص الختامية: bun run lint نظيف؛ ledger-check = balanced=true (159 قيداً، 57 مجموعة، صفر مخالفات) بعد كل عمليات الجلسة؛ ServiceState: الخدمات الخمس ON وOFFLINE معطل عمداً (R-14)؛ manifest.json وأيقونات PWA تُخدم 200.
+
+Stage Summary:
+- **المرحلة 9 (التسليم التجاري) مكتملة**: التطبيق الآن يشمل المرحلة 1 (Alpha: النواة المالية) + المرحلة 2 (Closed Beta: فواتير، شحن، كروت، دفع تاجر QR، حوالات واردة) + تغليف PWA.
+- الحسابات التجريبية: عميل موثّق 770000001 / عميلة 770000002 / خارج النطاق 770000003 / تاجر 770000020 / وكيل 770000010 / مدير 770100001 / امتثال 770100002 / دعم 770100003 — PIN الافتراضي 123456.
+- إجمالي الملكية الوظيفية: 40+ مسار API، 35+ شاشة، 6 أدوار فعلية (عميل/تاجر/وكيل/مدير/امتثال/دعم)، 3 عملات، دفاتر مزدوجة متوازنة، توثيق هندسي كامل (7 وثائق ~8800 سطر) داخل التطبيق.
+- جاهز للتسليم النهائي للمستخدم.

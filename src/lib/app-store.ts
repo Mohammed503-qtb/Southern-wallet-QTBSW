@@ -17,7 +17,7 @@
 "use client";
 
 import { create } from "zustand";
-import { api, ApiError } from "./api";
+import { api, ApiError, clearSessionToken } from "./api";
 import type { MeView } from "./api-types";
 
 /** مفاتيح كل شاشات التطبيق (عقد التوجيه الموحد) */
@@ -44,6 +44,14 @@ export type ScreenKey =
   | "savings"
   | "savings-new"
   | "savings-goal"
+  | "bills"
+  | "bill-pay"
+  | "topup"
+  | "cards"
+  | "my-qr"
+  | "pay-merchant"
+  | "merchant-pos"
+  | "remit-in"
   | "transactions"
   | "transaction-details"
   | "statement"
@@ -142,7 +150,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       const me = await api.get<MeView>("/api/me");
       set({ me, meLoading: false, bootstrapped: true });
-      get().resetTo(me.user.role === "CUSTOMER" ? "home" : "console");
+      // التاجر يبقى في تطبيق الهاتف (نقطة البيع شاشة داخلية) — البقية للوحة
+      get().resetTo(
+        me.user.role === "CUSTOMER" || me.user.role === "MERCHANT" ? "home" : "console"
+      );
     } catch (err) {
       set({ meLoading: false });
       if (err instanceof ApiError && err.status === 401) {
@@ -173,6 +184,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch {
       // حتى لو فشل الطلب ننظف الحالة محلياً
     }
+    clearSessionToken();
     set({ me: null, pendingOtp: null, registerDraft: null });
     get().resetTo(readOnboarded() ? "login" : "onboarding");
   },
@@ -196,8 +208,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   back: () => {
     const s = get();
     if (s.stack.length === 0) {
-      // شاشة جذرية أو بلا تاريخ — العودة إلى الرئيسية لعميل مسجل
-      if (s.me && s.me.user.role === "CUSTOMER" && s.screen !== "home") {
+      // شاشة جذرية أو بلا تاريخ — العودة إلى الرئيسية لعميل/تاجر مسجل
+      if (s.me && (s.me.user.role === "CUSTOMER" || s.me.user.role === "MERCHANT") && s.screen !== "home") {
         s.resetTo("home");
       }
       return;
