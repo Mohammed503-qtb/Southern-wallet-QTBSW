@@ -79,7 +79,7 @@ export const ROOT_SCREENS: readonly ScreenKey[] = [
 export interface PendingOtp {
   phone: string;
   mode: "REGISTER" | "LOGIN";
-  devCode?: string;
+  devCode?: string | null;
 }
 
 /** بيانات نموذج التسجيل التي تُرسل مع verify عند إنشاء حساب جديد */

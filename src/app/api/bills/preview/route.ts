@@ -6,6 +6,7 @@
  */
 import { ok, route, readJsonBody, reqStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
+import { assertServiceOn } from "@/lib/server/service-guard";
 import {
   assertValidAccountNumber,
   billerByCode,
@@ -18,6 +19,8 @@ import { db } from "@/lib/db";
 
 export const POST = route(async (req) => {
   await requireUser();
+  // Master §139: إنفاذ مفتاح الخدمة الإداري خادمياً (BILLS)
+  await assertServiceOn("BILLS");
 
   const body = await readJsonBody(req);
   const billerCode = reqStr(body, "billerCode");

@@ -14,6 +14,7 @@
  */
 import { ok, route, readJsonBody, reqStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
+import { assertServiceOn } from "@/lib/server/service-guard";
 import { assertNotFrozen, assertInScope } from "@/lib/server/domain";
 import { verifyPin } from "@/lib/server/pin";
 import { formatMinor } from "@/lib/server/money";
@@ -56,6 +57,8 @@ export const GET = route(async () => {
 
 export const POST = route(async (req) => {
   const user = await requireUser();
+  // Master §139: إنفاذ مفتاح الخدمة الإداري خادمياً (REMITTANCE_IN)
+  await assertServiceOn("REMITTANCE_IN");
   assertNotFrozen(user);
   await assertInScope(db, user);
 

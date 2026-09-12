@@ -1,0 +1,83 @@
+# ============================================================
+# محفظة الجنوب — South Wallet | com.janoub.wallet
+# docker-compose.yml — طبقة النشر الإنتاجي
+#
+# الخدمتان:
+#   app   : تطبيق Next.js standalone (bun) + قاعدة SQLite داخل وحدة تخزين مسماة
+#   caddy : بوابة TLS تلقائية (Let's Encrypt) + وكيل عكسي إلى app:3000
+#
+# التشغيل الأول (من جذر المستودع على خادم الإنتاج):
+#   cp .env.production.example .env.production   # ثم اضبط SW_DOMAIN
+#   docker compose up -d --build
+#
+# ملاحظات:
+#  • التطبيق لا يُنشر على منافذ المضيف إطلاقاً — الوصول عبر Caddy فقط (80/443)
+#    على شبكة داخلية sw-net بين الحاويتين.
+#  • env_file: .env.production يُطبَّق على الخدمتين (التطبيق يقرأ DATABASE_URL
+#    وCaddy يقرأ SW_DOMAIN و SW_ACME_EMAIL عبر عناصر {$SW_DOMAIN} في deploy/Caddyfile).
+#  • volume المسمى app-db هو وحدة تخزين قاعدة البيانات — لا تحذفه أبداً
+#    (docker compose down بدون -v يحافظ عليه).
+# ============================================================
+
+name: south-wallet
+
+services:
+  # ---------------- التطبيق ----------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: south-wallet/app:latest
+    env_file:
+      - .env.production
+    # منفذ داخلي فقط (لا ports:) — Caddy هو البوابة الوحيدة
+    expose:
+      - "3000"
+    volumes:
+      # قاعدة SQLite داخل وحدة تخزين مسماة — يُنشئ المخطط تلقائياً عند أول تشغيل
+      - app-db:/app/db
+    restart: unless-stopped
+    # docker-init (tini) كـ PID 1 لإعادة توجيه الإشارات وإدارة العمليات اليتيمة
+    init: true
+    stop_grace_period: 20s
+    networks:
+      - sw-net
+    healthcheck:
+      # /api/health يعيد 200 مع {db:true} أو 503 عند تعذر قاعدة البيانات
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------------- بوابة Caddy (TLS تلقائي) ----------------
+  caddy:
+    image: caddy:2-alpine
+    env_file:
+      - .env.production # يمرر SW_DOMAIN / SW_ACME_EMAIL إلى {$SW_DOMAIN} في Caddyfile
+    ports:
+      - "80:80" # HTTP → تحويل إلى HTTPS + تحديات ACME
+      - "443:443" # HTTPS
+      - "443:443/udp" # HTTP/3 (QUIC) — مدعوم افتراضياً في Caddy
+    volumes:
+      # ملف الإعداد للإنتاج (وليس Caddyfile الـSandbox الجذري)
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # بيانات Caddy — شهادات Let's Encrypt: فقدانها يعني إعادة الإصدار (وحد المعدل)
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy # لا يبدأ الوسطاء قبل صحة التطبيق
+    restart: unless-stopped
+    networks:
+      - sw-net
+
+volumes:
+  app-db: {}
+  caddy_data: {}
+  caddy_config: {}
+
+networks:
+  # شبكة جسر داخلية بين الحاويتين — التطبيق غير مكشوف للمضيف/الخارج
+  sw-net:
+    driver: bridge

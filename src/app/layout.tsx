@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { SwRegister } from "@/components/app/shell/sw-register";
 
 export const metadata: Metadata = {
   title: "محفظة الجنوب — محفظة إلكترونية لجنوب اليمن (Alpha)",
@@ -55,6 +56,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className="font-cairo antialiased bg-[#FAF9F6] text-[#0B0B0C]">
         {children}
+        <SwRegister />
         <Toaster />
       </body>
     </html>

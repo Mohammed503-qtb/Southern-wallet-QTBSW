@@ -1,0 +1,57 @@
+# ============================================================
+# محفظة الجنوب — South Wallet | استثناءات سياق بناء Docker
+# الهدف: سياق بناء نظيف وصغير + عدم تسريب أي بيانات محلية إلى الصورة
+# (تبقى داخل الصورة فقط: المصدر + prisma + docs + package.json + bun.lock)
+# ============================================================
+
+# تبعيات ومخرجات بناء (تُعاد داخل الحاوية من الصفر)
+node_modules
+.next
+
+# مستودع Git وملفاته
+.git
+.gitignore
+.github
+
+# قاعدة بيانات التطوير المحلية — لا تدخل الصورة أبداً
+# (المخطط موجود في prisma/schema.prisma والبيانات وقت التشغيل في وحدة التخزين)
+db
+
+# سجلات
+dev.log
+dev.out.log
+server.log
+*.log
+*.pid
+
+# مخرجات أدوات الوكلاء المؤقتة
+tool-results
+worklog-attachments
+worklog-entries
+test-artifacts
+logo-analysis.json
+
+# مجلدات بيئة Sandbox ليست من التسليم الإنتاجي
+skills
+upload
+download
+examples
+mini-services
+tests
+
+# سكربتات z وأدوات البيئة المحلية
+.zscripts
+.z-ai-config
+.zcoder
+prompt
+
+# ملفات البيئة — باستثناء النموذج الآمن للالتزام (أسماء وقيم placeholder فقط)
+.env
+.env.*
+!.env.production.example
+
+# ملفات النشر نفسها لا حاجة لها داخل سياق البناء (تُدار من المضيف)
+Caddyfile
+docker-compose.yml
+.dockerignore
+Dockerfile

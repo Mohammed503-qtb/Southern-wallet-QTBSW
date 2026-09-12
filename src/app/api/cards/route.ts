@@ -12,6 +12,7 @@
  */
 import { ok, route, readJsonBody, reqStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
+import { assertServiceOn } from "@/lib/server/service-guard";
 import { assertNotFrozen, assertInScope, generateRef } from "@/lib/server/domain";
 import { verifyPin } from "@/lib/server/pin";
 import { assertDailyLimit, computeFee, formatMinor } from "@/lib/server/money";
@@ -67,6 +68,8 @@ export const GET = route(async (req) => {
 
 export const POST = route(async (req) => {
   const user = await requireUser();
+  // Master §139: إنفاذ مفتاح الخدمة الإداري خادمياً (NETWORK_CARDS)
+  await assertServiceOn("NETWORK_CARDS");
   assertNotFrozen(user);
   await assertInScope(db, user);
 

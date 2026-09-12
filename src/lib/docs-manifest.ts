@@ -14,7 +14,9 @@ export type DocIconKey =
   | "Database"
   | "Braces"
   | "Smartphone"
-  | "Map";
+  | "Map"
+  | "Rocket"
+  | "ShieldCheck";
 
 export type StatKey = keyof DocStats;
 
@@ -158,6 +160,34 @@ export const DOC_DEFINITIONS: DocDefinition[] = [
       { key: "requirements", label: "مرجع AC/RK/A موثّق" },
       { key: "words", label: "كلمة" },
       { key: "lines", label: "سطراً" },
+    ],
+  },
+  {
+    id: "deployment",
+    step: 8,
+    file: "DEPLOYMENT.md",
+    title: "دليل النشر الفعلي",
+    shortTitle: "Deployment",
+    subtitle: "Docker + Caddy HTTPS — النسخ الاحتياطي — التحديث والتراجع — قائمة M-7",
+    icon: "Rocket",
+    hero: [
+      { key: "sections", label: "قسماً" },
+      { key: "lines", label: "سطراً" },
+      { key: "words", label: "كلمة" },
+    ],
+  },
+  {
+    id: "readiness",
+    step: 9,
+    file: "PRODUCTION_READINESS.md",
+    title: "جهوزية الإنتاج والفجوات المفتوحة",
+    shortTitle: "Readiness",
+    subtitle: "موضعنا في الخارطة — الفجوات الحرجة — خطة الإغلاق حتى الإطلاق",
+    icon: "ShieldCheck",
+    hero: [
+      { key: "sections", label: "قسماً" },
+      { key: "lines", label: "سطراً" },
+      { key: "words", label: "كلمة" },
     ],
   },
 ];

@@ -1,0 +1,49 @@
+# ============================================================
+# محفظة الجنوب — South Wallet | Caddyfile الإنتاج
+# هذا الملف مخصص للنشر الإنتاجي عبر docker-compose (يُركَّب للقراءة فقط
+# في حاوية caddy) — وهو ليس Caddyfile الجذري الخاص ببوابة Sandbox.
+#
+# ⚙️ ضبط النطاق (قبل أول تشغيل):
+#   انسخ .env.production.example إلى .env.production واضبط:
+#     SW_DOMAIN=wallet.example.com        ← نطاقك الحقيقي
+#     SW_ACME_EMAIL=admin@example.com     ← بريد تنبيهات الشهادة (موصى به)
+#   يمرر docker-compose هذه المتغيرات إلى حاوية caddy (env_file) فتُقرأ هنا
+#   عبر الصيغة {$SW_DOMAIN} — لا حاجة لتعديل هذا الملف إطلاقاً.
+#
+# HTTPS تلقائي: يصدر Caddy شهادة Let's Encrypt عند أول وصول للنطاق
+# (يتطلب سجل DNS A صحيحاً + فتح 80/443) ويجددها تلقائياً قبل الانتهاء.
+# ============================================================
+
+{
+        # بريد مالك النطاق لتنبيهات Let's Encrypt (انتهاء/فشل تجديد)
+        # القيمة الافتراضية placeholder — استبدلها عبر SW_ACME_EMAIL
+        email {$SW_ACME_EMAIL:admin@wallet.example.com}
+}
+
+# ---------------- الموقع الآمن (HTTPS) ----------------
+{$SW_DOMAIN} {
+        # ضغط الاستجابات: zstd أولاً ثم gzip حسب دعم المتصفح
+        encode zstd gzip
+
+        # أمان النقل HTTP Strict Transport-Security — النطاق HTTPS فقط
+        header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+        # ملاحظة مراقبة: مسار /api/health متاح عمداً للمراقبة الخارجية
+        # (Uptime Kuma أو أي أداة فحص) — لا تحجبه.
+        # الفحص: curl https://<SW_DOMAIN>/api/health → 200 مع {db:true}
+
+        reverse_proxy app:3000 {
+                # تمرير البروتوكول الأصلي (https) للتطبيق — مطلوب خلف وكيل عكسي
+                header_up X-Forwarded-Proto {scheme}
+                transport http {
+                        # مهلات سليمة: فشل الاتصال سريعاً + مهلة رؤوس الاستجابة للصفحات البطيئة
+                        dial_timeout 5s
+                        response_header_timeout 60s
+                }
+        }
+}
+
+# ---------------- تحويل HTTP إلى HTTPS ----------------
+http://{$SW_DOMAIN} {
+        redir https://{$SW_DOMAIN}{uri} permanent
+}

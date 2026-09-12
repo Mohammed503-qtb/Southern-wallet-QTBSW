@@ -6,6 +6,7 @@
  */
 import { ok, route, readJsonBody, reqStr, RouteError, optStr } from "@/lib/server/envelope";
 import { assertValidPhone } from "@/lib/server/domain";
+import { rateLimit, clientIp } from "@/lib/server/rate-limit";
 import { createSession } from "@/lib/server/auth";
 import { notify } from "@/lib/server/notify";
 import { toPublicUser } from "@/lib/server/views";
@@ -19,6 +20,12 @@ export const POST = route(async (req) => {
   const body = await readJsonBody(req);
   const phone = assertValidPhone(reqStr(body, "phone"));
   const code = reqStr(body, "code");
+
+  // حد معدل لكل IP: 30 محاولة تحقق/ساعة (فوق حد محاولات الرمز نفسه)
+  const ipCheck = rateLimit("auth-verify-ip", clientIp(req), 30, 60 * 60_000);
+  if (!ipCheck.allowed) {
+    throw new RouteError("SYS-002", 429, { secondsRemaining: ipCheck.retryAfterSec });
+  }
 
   const otp = await db.otpCode.findFirst({
     where: { phone, consumedAt: null },

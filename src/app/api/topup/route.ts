@@ -12,6 +12,7 @@
  */
 import { ok, route, readJsonBody, reqStr, reqInt, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
+import { assertServiceOn } from "@/lib/server/service-guard";
 import {
   assertNotFrozen,
   assertInScope,
@@ -65,6 +66,8 @@ export const GET = route(async (req) => {
 
 export const POST = route(async (req) => {
   const user = await requireUser();
+  // Master §139: إنفاذ مفتاح الخدمة الإداري خادمياً (TOPUP)
+  await assertServiceOn("TOPUP");
   assertNotFrozen(user);
   await assertInScope(db, user);
 

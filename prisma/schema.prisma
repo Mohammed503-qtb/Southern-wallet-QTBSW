@@ -82,12 +82,16 @@ model Session {
   userId      String
   deviceLabel String   @default("متصفح الويب — Alpha")
   active      Boolean  @default(true)
+  // إنتاج: الجلسة (بقناتيها كوكي وترويسة) تنتهي بعد 7 أيام كحد أقصى
+  // — القناة الاحتياطية x-sw-session كانت خالدة قبل هذه الإضافة (NFR-SEC-004)
+  expiresAt   DateTime @default(now())
   lastSeenAt  DateTime @default(now())
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([active, expiresAt])
 }
 
 model KycSubmission {

@@ -17,6 +17,8 @@ import {
   Download,
   FileText,
   Map as MapIcon,
+  Rocket,
+  ShieldCheck,
   Smartphone,
   Users,
 } from "lucide-react";
@@ -46,6 +48,8 @@ const DOC_ICONS: Record<string, LucideIcon> = {
   api: Braces,
   screens: Smartphone,
   roadmap: MapIcon,
+  deployment: Rocket,
+  readiness: ShieldCheck,
 };
 
 export function DocsScreen() {

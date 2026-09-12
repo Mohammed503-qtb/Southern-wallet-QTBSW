@@ -37,6 +37,8 @@ export interface DemoLoginButtonsProps {
 }
 
 export function DemoLoginButtons({ onDone, layout = "panel" }: DemoLoginButtonsProps) {
+  // إنتاج: الواجهة مخفية أيضاً (المسار API محجوب خادمياً بAUTH-006 — دفاع مزدوج)
+  const isProdBuild = process.env.NODE_ENV === "production";
   const bootstrap = useAppStore((s) => s.bootstrap);
   const [busyPhone, setBusyPhone] = useState<string | null>(null);
 
@@ -64,6 +66,9 @@ export function DemoLoginButtons({ onDone, layout = "panel" }: DemoLoginButtonsP
       setBusyPhone(null);
     }
   };
+
+  // ملاحظة: بعد كل الـhooks مباشرة — الإخفاء الكامل في بناء الإنتاج
+  if (isProdBuild) return null;
 
   return (
     <div

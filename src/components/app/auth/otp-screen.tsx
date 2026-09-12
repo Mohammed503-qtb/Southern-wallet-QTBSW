@@ -112,7 +112,7 @@ export function OtpScreen() {
     try {
       const data = await api.post<{
         mode: "REGISTER" | "LOGIN";
-        devCode: string;
+        devCode: string | null;
         expiresInSeconds: number;
       }>("/api/auth/otp", { phone: pendingOtp.phone });
       setPendingOtp({ ...pendingOtp, devCode: data.devCode, mode: data.mode });

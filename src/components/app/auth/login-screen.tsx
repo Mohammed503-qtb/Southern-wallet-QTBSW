@@ -47,7 +47,7 @@ export function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.post<{ mode: "REGISTER" | "LOGIN"; devCode: string; expiresInSeconds: number }>(
+      const data = await api.post<{ mode: "REGISTER" | "LOGIN"; devCode: string | null; expiresInSeconds: number }>(
         "/api/auth/otp",
         { phone },
       );

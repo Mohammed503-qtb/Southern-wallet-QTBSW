@@ -20,13 +20,21 @@ const COOKIE_NAME = "sw_session";
 const TOKEN_HEADER = "x-sw-session";
 const SESSION_MAX_AGE_SEC = 7 * 24 * 60 * 60; // 7 أيام
 
-/** إنشاء جلسة + ضبط الكوكي — يعيد الرمز ليرسل في استجابة الدخول (القناة الاحتياطية) */
+/** إنشاء جلسة + ضبط الكوكي — يعيد الرمز ليرسل في استجابة الدخول (القناة الاحتياطية)
+ *  انتهاء صلاحية موحد 7 أيام لقناتي الكوكي والترويسة (NFR-SEC-004) +
+ *  تنظيف الجلسات المنتهية كسلياً */
 export async function createSession(
   userId: string,
   deviceLabel = "متصفح الويب — Alpha"
 ): Promise<string> {
   const token = randomBytes(24).toString("hex"); // 48 hex
-  await db.session.create({ data: { token, userId, deviceLabel } });
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SEC * 1000);
+  // بيت تنظيف: إبطال كل الجلسات المنتهية المتروكة نشطة
+  await db.session.updateMany({
+    where: { active: true, expiresAt: { lt: new Date() } },
+    data: { active: false },
+  });
+  await db.session.create({ data: { token, userId, deviceLabel, expiresAt } });
   const jar = await cookies();
   jar.set(COOKIE_NAME, token, {
     httpOnly: true,
@@ -46,11 +54,18 @@ async function readSessionToken(): Promise<string | null> {
   return hdrs.get(TOKEN_HEADER);
 }
 
-/** الجلسة الحالية (حسب الكوكي أو الترويسة) — أو null */
+/** الجلسة الحالية (حسب الكوكي أو الترويسة) أو null — مع إنفاذ الانتهاء خادمياً */
 export async function getCurrentSession(): Promise<Session | null> {
   const token = await readSessionToken();
   if (!token) return null;
-  return db.session.findUnique({ where: { token } });
+  const session = await db.session.findUnique({ where: { token } });
+  if (!session || !session.active) return null;
+  if (session.expiresAt.getTime() <= Date.now()) {
+    // جلسة منتهية — إبطالها كسلياً والتعامل معها كغير موجودة
+    await db.session.updateMany({ where: { token }, data: { active: false } }).catch(() => {});
+    return null;
+  }
+  return session;
 }
 
 /** مستخدم الجلسة الحالية أو null (الحسابات المغلقة لا جلسة لها) */

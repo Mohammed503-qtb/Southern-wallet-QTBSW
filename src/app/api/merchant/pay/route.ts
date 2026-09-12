@@ -19,6 +19,7 @@
  */
 import { ok, route, readJsonBody, reqStr, reqInt, optStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
+import { assertServiceOn } from "@/lib/server/service-guard";
 import { assertNotFrozen, assertInScope, assertValidPhone, generateRef } from "@/lib/server/domain";
 import { verifyPin } from "@/lib/server/pin";
 import { computeFee, getFeeRule, requireValidAmount, assertDailyLimit, formatMinor } from "@/lib/server/money";
@@ -32,6 +33,8 @@ const CURRENCY = "YER" as const;
 
 export const POST = route(async (req) => {
   const user = await requireUser();
+  // Master §139: إنفاذ مفتاح الخدمة الإداري خادمياً (MERCHANT_PAY)
+  await assertServiceOn("MERCHANT_PAY");
   assertNotFrozen(user);
   await assertInScope(db, user);
 

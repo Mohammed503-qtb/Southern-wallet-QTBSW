@@ -80,7 +80,7 @@ export function RegisterScreen() {
     setLoading(true);
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
     try {
-      const data = await api.post<{ mode: "REGISTER" | "LOGIN"; devCode: string }>(
+      const data = await api.post<{ mode: "REGISTER" | "LOGIN"; devCode: string | null }>(
         "/api/auth/otp",
         { phone },
       );
