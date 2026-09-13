@@ -8,7 +8,7 @@
  */
 import { db } from "@/lib/db";
 
-const APP_VERSION = "beta-1.0.0";
+const APP_VERSION = "1.0.0";
 const startedAt = Date.now();
 
 export const dynamic = "force-dynamic";
