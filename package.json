@@ -7,10 +7,15 @@
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "db:seed": "bun prisma/seed.ts",
+    "db:seed:phase2": "bun prisma/seed-phase2-merchant.ts && bun prisma/seed-phase2-payments.ts",
+    "db:seed:all": "bun run db:seed && bun run db:seed:phase2",
+    "totp:code": "bun scripts/totp-code.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

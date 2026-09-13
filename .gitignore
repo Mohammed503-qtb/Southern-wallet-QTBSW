@@ -60,6 +60,17 @@ server.log
 *.pid
 .zscripts/dev.pid
 
+# sandbox/platform infrastructure (recreated by the environment, not part of the product)
+/.zscripts/
+/Caddyfile
+/download/
+/upload/
+/examples/
+/tests/
+/mini-services/
+/logo-analysis.json
+/test-artifacts/
+
 # KYC uploaded documents (user PII — never commit; keep dir via .gitkeep)
 uploads/*
 !uploads/.gitkeep
