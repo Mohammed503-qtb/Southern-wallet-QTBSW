@@ -3,6 +3,8 @@
 > هذه الوثيقة **ملزمة** لكل وكلاء البناء (8-a / 8-b / 8-c / 8-d). أي تعارض بينها وبين وثائق docs/ الأقدم → هذه الوثيقة أسلم في نطاق المرحلة 1.
 > المرجعية: docs/SRS.md (المرجع التعاقدي)، docs/SCREENS_FLOWS.md (الشاشات ونظام التصميم §2)، docs/API_ENDPOINTS.md (الاصطلاحات المفاهيمية).
 
+> **تحديث 2026-09-13 (المهمة 12 — تحصين الإنتاج):** عقد المصادقة أدناه (§5.1) **أُعيد كتابته بالكامل**: قناة SMS-OTP مع `devCode` ومسار `demo-login` **حُذفا نهائياً من الكود** وحُلّ محلّهما **TOTP بدون SMS** (رمز 6 خانات من تطبيق المصادقة / رمز استرداد XXXX-XXXX / رمز تفعيل R+7 من الدعم) مع تشفير الأسرار AES-256-GCM بمفتاح APP_KEY وأحداث أمنية وقفل محاولات. كذلك: K2 صار **multipart برفع ملفات فعلي** + مسار K3 جديد، M17/M18 للمسارات الأمنية الإدارية، X1/X2 (عارض الوثائق) حُذفا، وشاشة البصمة (A9 سابقاً) أزيلت من الإنتاج. الجلسة بقناتيها (كوكي + ترويسة `x-sw-session`) كما هي بانتهاء خادمي 7 أيام.
+
 ## 0. القرارات المحسومة (اعتماد صاحب المنتج: "أوافق على كل شيء")
 
 | القرار | الحسم |
@@ -11,20 +13,20 @@
 | D-02 ترتيب الدفع/التاجر | خدمات المرحلة 2 (فواتير/شحن/كروت/دفع تاجر/حوالة واردة) = **COMING_LATER** ظاهرة عبر ServiceState |
 | FR-CRY | خارج النطاق كلياً |
 | D-05 التوسع | 8 محافظات جنوبية فقط (القائمة في api-types) |
-| مزودو SMS/OTP | وضع تجريبي: يُعاد الرمز في الاستجابة `devCode` ويعرض في واجهة Alpha |
+| مزودو SMS/OTP | ~~وضع تجريبي: يُعاد الرمز في الاستجابة `devCode` ويعرض في واجهة Alpha~~ → **مُستبدل نهائياً (2026-09-13):** المصادقة **TOTP بدون SMS** (تطبيق مصادقة + 8 رموز استرداد + رموز تفعيل R+7 من الدعم) — SMS لم يعد شرطاً للدخول ويبقى خياراً مستقبلياً |
 
 ## 1. البنية التنفيذية في هذه البيئة
 
 - **Frontend**: Next.js 16 App Router — صفحة واحدة `/` تعمل كتطبيق SPA (توجيه شاشات كامل بstate داخل المتصفح — بلا مسارات صفحات أخرى).
 - **Backend**: Route Handlers تحت `/api/*` + Prisma (SQLite موجود بدفع المخطط) — العقد كامل أدناه.
-- **الوصول**: كل مسار API يتحقق من الجلسة (كوكي `sw_session` httpOnly) والدور.
-- كل الكود TypeScript صارم، `'use client'` حيث يلزم، لا `any` في الملفات الجديدة إلا لمخرجات JSON الخام المعروفة النمط.
+- **الوصول**: كل مسار API يتحقق من الجلسة (كوكي `sw_session` httpOnly أو ترويسة `x-sw-session` الاحتياطية — انتهاء خادمي 7 أيام للقناتين) والدور؛ و`/api/admin/*` فوق ذلك يخضع لوسيط `ADMIN_IP_ALLOWLIST` الاختياري (RBAC-002).
+- كل الكود TypeScript صارم، `'use client'` حيث يلزم، لا `any` في الملفات الجديدة إلا لمخرجات JSON الخام المعروفة النمط — **مفروض فعلياً منذ 2026-09-13**: `tsc --noEmit` نظيف و`ignoreBuildErrors` مُزال وCI (lint+build) يفرضه.
 
 ## 2. الاصطلاحات (ملزمة)
 
 1. **الغلاف الموحد** لكل استجابة: نجاح `{ "ok": true, "data": ... }` / فشل `{ "ok": false, "error": { "code", "message", "details" } }`.
 2. **أكواد الأخطاء** كما في `src/lib/api-types.ts` (`ERROR_MESSAGES`) — الخادم يرسل code+message، الواجهة تعرض الرسالة.
-3. **الجلسة**: `sw_session` (httpOnly, sameSite=lax, 7 أيام) — `getSessionUser()` في `src/lib/server/auth.ts`.
+3. **الجلسة**: `sw_session` (httpOnly, sameSite=lax, 7 أيام) + **قناة احتياطية إلزامية: ترويسة `x-sw-session`** بنفس الرمز وبنفس الانتهاء الخادمي (iframe-safe) — `getSessionUser()` في `src/lib/server/auth.ts`.
 4. **Idempotency**: رأس `Idempotency-Key` في كل POST مالي (تحويل/حوالة/سحب/صرف/حصالة). الخادم يخزنه مع العملية: نفس المفتاح+نفس المستخدم → إعادة نفس الاستجابة 200 مع `details.replayed=true`؛ نفس المفتاح وحمولة مختلفة → `TXN-003` (AC-03).
 5. **PIN**: 6 أرقام، scrypt (`src/lib/server/pin.ts`) — يُرسل في جسم الطلبات المالية، يُتحقق قبل أي خصم، قفل تصاعدي (3 محاولات → 5 دقائق، 6 → 30 دقيقة) = PIN-002.
 6. **المبالغ**: دائماً `xxxMinor: number` (Int) + `currency: "YER"|"SAR"|"USD"` — التنسيق فقط في الواجهة عبر `formatMoney`.
@@ -59,28 +61,36 @@
 
 قيم Seed التفصيلية (رسوم/حدود/صرف) كما في `prisma/seed.ts` — 8-a يكتبها ويشغّلها (`bunx tsx prisma/seed.ts` أو `bun prisma/seed.ts` مع tsx إن لزم؛ الهدف: قاعدة مليئة تعمل).
 
+**تحديث 2026-09-13:** البذور تفعّل **TOTP لكل حساب** بسرّ حتمي مشتق من APP_KEY لكل هاتف — رمز الدخول الحالي يُطبع بأداة `bun scripts/totp-code.ts <phone>` (بيئات التجربة فقط؛ **لا تُشغَّل البذور في الإنتاج العام** — مستخدموه يملكون أسرارهم في أجهزتهم).
+
 ## 5. عقد نقاط النهاية (كامل — ملزم للطرفين)
 
 > الأنواع في `src/lib/api-types.ts`. «(جلسة)» = يتطلب كوكي جلسة. «(دور)» = يتطلب الدور المذكور. كل POST جسده JSON.
 
-### 5.1 المصادقة
+### 5.1 المصادقة — TOTP بدون SMS (أُعيدت كتابتها 2026-09-13)
+
 | # | الطريقة والمسار | الوصف |
 |---|---|---|
-| A1 | POST /api/auth/otp `{ phone }` | يولد OTP — يعيد `{ mode:"REGISTER"\|"LOGIN", devCode, expiresInSeconds }`. فترات: إعادة إرسال ≥60s (AUTH-004)، صلاحية 5 دقائق، 5 محاولات |
-| A2 | POST /api/auth/verify `{ phone, code }` | يسجل الدخول/ينشئ حساباً → كوكي جلسة — يعيد `{ user, needsPin }`. حساب مجمّد → دخول اطلاع فقط (AUTH-005 تُعاد كdetails لا كفشل) |
-| A3 | POST /api/auth/demo-login `{ phone }` | دخول سريع لحساب Seed (تجريبي فقط) — نفس مخرجات A2 |
-| A4 | POST /api/auth/logout | يبطل الجلسة |
-| A5 | GET /api/me | يعيد `MeView` (user+wallets+kyc+limits+unread+scopeNotice) |
-| A6 | POST /api/pin `{ pin }` | تعيين PIN لأول مرة (يتطلب جلسة بلا pinHash) |
-| A7 | PUT /api/pin `{ currentPin, newPin }` | تغيير PIN |
-| A8 | POST /api/pin/verify `{ pin }` | تحقق قبل عملية حساسة (يصفّر العداد عند النجاح) |
-| A9 | PUT /api/me/biometric `{ enabled }` | تبديل البصمة (تجريبي) |
+| A1 | POST /api/auth/login `{ phone }` | فحص الحساب → `{ exists, enrolled, frozen }` (توجيه الواجهة). حدود: 30/س/IP + 10/15د/هاتف (SYS-002) |
+| A2 | POST /api/auth/login/verify `{ phone, code }` | تحقق الدخول بثلاث صيغ: **TOTP** 6 خانات (نافذة ±30ث + منع إعادة الاستخدام عبر totpLastStep) / **رمز استرداد** `XXXX-XXXX` لمرة واحدة / **رمز تفعيل** `R+7` (→ فرع `reEnroll` يعرض إلحاقاً جديداً). النجاح → `AuthResultView` { user, needsPin, notice, noticeCode, sessionToken, recoveryRemaining } + جلسة. فشل: قفل 5/15د لكل هاتف (AUTH-003)؛ مجمّد → دخول اطلاعي (AUTH-005 كnotice)؛ AUTH-007 لو المصادقة غير مفعّلة |
+| A3 | POST /api/auth/register `{ phone, fullName, governorate }` | إنشاء حساب (ACTIVE بلا أموال + المحافظ الثلاث + إشعار) → **إلحاق TOTP مرة واحدة** `{ enrollment: { secret, otpauthUrl, qrDataUrl } }`. AUTH-901 لو الرقم مؤكد المصادقة؛ إعادة تسجيل مهجور تجدّده بلا أموال |
+| A4 | POST /api/auth/register/confirm `{ phone, code }` | تأكيد الإلحاق برمز التطبيق → تفعيل TOTP + **8 رموز استرداد تُعرض مرة واحدة** (recoveryCodes) + جلسة. AUTH-902/409 لو مفعّل، AUTH-007/403 لو لا إلحاق |
+| A5 | POST /api/auth/login/reenroll-confirm `{ phone, token, code }` | إتمام إعادة الإلحاق بعد إعادة تعيين إدارية: رمز `R+7` (يُستهلك هنا — 24س لمرة واحدة) + رمز TOTP للسر الجديد → تفعيل + جلسة + رموز استرداد جديدة |
+| A6 | POST /api/auth/recovery/regen `{ code }` | (جلسة + رمز TOTP حالي) إعادة توليد رموز الاسترداد → 8 جديدة تُعرض مرة واحدة. حد 3/س (RECOVERY_REGEN) |
+| A7 | POST /api/auth/logout | يبطل الجلسة |
+| A8 | GET /api/me | يعيد `MeView` (user+wallets+kyc+limits+unread+scopeNotice) |
+| A9 | POST /api/pin `{ pin }` | تعيين PIN لأول مرة (يتطلب جلسة بلا pinHash) |
+| A10 | PUT /api/pin `{ currentPin, newPin }` | تغيير PIN |
+| A11 | POST /api/pin/verify `{ pin }` | تحقق قبل عملية حساسة (يصفّر العداد عند النجاح) |
+
+> **حُذفت (2026-09-13):** `A1 القديم` (POST /api/auth/otp — SMS-OTP مع devCode وAUTH-004)، `A2 القديم` (POST /api/auth/verify)، `A3 القديم` (POST /api/auth/demo-login — الدخول التجريبي)، و`A9 القديم` (PUT /api/me/biometric — البصمة أزيلت من الإنتاج). الأسرار: سر 20 بايتاً Base32 لكل مستخدم **مشفّر AES-256-GCM بمفتاح `APP_KEY`** (`src/lib/server/crypto-vault.ts` — إلزامي في الإنتاج)؛ الأحداث الأمنية لكل فشل/قفل/نجاح/استرداد/إعادة تعيين (جدول SecurityEvent).
 
 ### 5.2 KYC والملف
 | # | الطريقة والمسار | الوصف |
 |---|---|---|
 | K1 | GET /api/kyc | آخر طلب توثيق أو null |
-| K2 | POST /api/kyc `{ fullName, idType, idNumber, governorate, address?, occupation?, monthlyIncomeMinor?, docName?, selfieName? }` | إرسال طلب (KYC-002 لو قائم) + إشعار |
+| K2 | POST /api/kyc **multipart/form-data**: حقول نصية `{ fullName, idType, idNumber, governorate, address?, occupation?, monthlyIncomeMinor? }` + `docFile` (File إلزامي: JPEG/PNG/WEBP ≤5MB) + `selfieFile?` (File) | إرسال طلب (KYC-002 لو قائم) + فحص بايتات سحرية خادمياً + تخزين `uploads/kyc/{userId}/` بأسماء عشوائية 0600 + حذف مرفوعات التقديم السابق + إشعار — **محدَّث 2026-09-13 (12-g)** |
+| K3 | GET /api/kyc/file `?userId&kind=doc\|selfie` | جلب مستند للعرض: المالك أو ADMIN/COMPLIANCE (RBAC-001 خلافاً) — اسم الملف من القاعدة حصراً + `no-store` + منع اجتياز مسار |
 | P1 | GET /api/profile | `{ user: PublicUser, sessions: [...] }` للأجهزة/الجلسات |
 | P2 | DELETE /api/profile/sessions/:id | إنهاء جلسة أخرى (SECURITY) |
 
@@ -173,14 +183,16 @@
 | M14 | GET /api/admin/pending | الحوالات/العمليات النقدية المعلقة — ADMIN |
 | M15 | POST /api/admin/pending/cash/:id/cancel `{ reason }` / `.../remittance/:id/cancel `{ reason }` | إلغاء إداري باسترجاع — ADMIN |
 | M16 | GET /api/admin/ledger-check | فحص توازن الدفاتر — ADMIN |
+| M17 | GET /api/admin/security-events `?cursor&kind` | `PageView` أحداث أمنية (دخول فاشل/قفل/نجاح، TOTP_RESET، استرداد، رموز تفعيل) — ADMIN/COMPLIANCE — **جديد 2026-09-13** |
+| M18 | POST /api/admin/users/:id/reset-totp `{ reason }` | إبطال جلسات المستخدم + مسح TOTP/رموز الاسترداد + إصدار رمز تفعيل R+7 (24س لمرة واحدة) + رفع قفل هاتفه + Audit + إشعار — ADMIN — **جديد 2026-09-13** |
 
 > دعم التذاكر للطاقم: نفس H1–H4 (يرون كل التذاكر) + `PUT /api/support/tickets/:id/status `{ status }` بل SUPPORT/ADMIN.
 
 ### 5.12 عام
 | # | الطريقة والمسار | الوصف |
 |---|---|---|
-| X1 | GET /api/docs | `DocMetaView[]` (بيان 7 وثائق) |
-| X2 | GET /api/docs/:slug | `{ meta, content }` (markdown خام) — slug: srs/stories/architecture/database/api/screens/roadmap |
+| X1 | ~~GET /api/docs~~ | **حُذف (2026-09-13)** — عارض الوثائق داخل التطبيق أزيل من الإنتاج (الوثائق تبقى في `docs/` بالمستودع) |
+| X2 | ~~GET /api/docs/:slug~~ | **حُذف (2026-09-13)** — مع X1 |
 | X3 | GET /api/qr?text=...&size= | SVG لرمز QR (مكتبة qrcode مثبتة) — Content-Type: image/svg+xml |
 | X4 | GET /api/health | `{ ok, db, time }` |
 
@@ -195,12 +207,12 @@
 ## 7. خريطة الشاشات (8-b / 8-c / 8-d)
 
 ### مفاتيح التوجيه (SPA state) — التطبيق (CUSTOMER):
-`splash → onboarding → login → otp → register → pin-create → biometric → home`
+`splash → onboarding → login → totp-verify → register → totp-enroll → recovery-codes → pin-create → home` — **محدَّث 2026-09-13**: لا `otp` ولا `biometric` ولا `docs` (حُذفت من مفاتيح الشاشات).
 - home: ترويسة (الاسم+شعار+جرس الإشعارات)، بطاقة الأرصدة (CurrencyTabs YER/SAR/USD + رصيد + زر عين للإخفاء)، 8 خدمات (تحويل/حوالة/إيداع/سحب/فواتير*COMING_LATER/شحن*QR/حصالة/المزيد)، آخر العمليات (5) → الكل، بانر KYC إن NONE، بانر scope إن خارج النطاق.
 - services: كتالوج كامل بحالات ServiceState (تعطيل النقر لغير ON مع شريحة الحالة).
 - wallet-details/:currency: رصيد، أزرار (تحويل/استلام/إيداع/سحب)، عمليات العملة فقط.
-- transfer: تبويبات (رقم/مفضلون/QR) → كمية CurrencyTabs → مراجعة (T1) → pin (A8) → تنفيذ (T2) → result (receipt).
-- scan-qr: تجربة محاكاة + إدخال يدوي + كاميرا إن توفرت.
+- transfer: تبويبات (رقم/مفضلون/QR) → كمية CurrencyTabs → مراجعة (T1) → pin (A11) → تنفيذ (T2) → result (receipt).
+- scan-qr: كاميرا (BarcodeDetector) إن توفرت + إدخال يدوي — **أزرار المحاكاة التجريبية حُذفت (2026-09-13)**.
 - wallet-transfer (بين محافظي): W3 → PIN → W4 → result.
 - remittance-create / remittances (قائمة+تتبع) / (الإلغاء) — الرمز يظهر في بطاقة الإيصال.
 - cash-deposit / cash-withdraw: اختيار وكيل من C1 (بحث/مارسة محافظة) → كمية → PIN (سحب فقط) → C4 → withdraw-code (رمز+انتهاء+إلغاء).
@@ -208,9 +220,9 @@
 - savings (نظرة/إنشاء/إيداع/سحب/تحطيم) S1–S5.
 - transactions (فلاتر/بحث/tabs حالة) → transaction-details/:ref (إيصال كامل + قيود الدفتر المصغرة) ; statement: نطاق تاريخ → T5 → عرض + تنزيل CSV.
 - notifications: N1/N2 + تفريق مقروء.
-- profile / kyc (K2: نموذج كامل) / security (تغيير PIN/بصمة) / devices (P1: جلساتي + إنهاء) / settings (لغة/وضع القراءة).
+- profile / kyc (K2 multipart برفع فعلي + معاينة) / security (تغيير PIN + **حالة TOTP ورموز الاسترداد A6** — البصمة أزيلت) / devices (P1: جلساتي + إنهاء) / settings (لغة/وضع القراءة).
 - help (FAQ ثابت) / ticket-new / ticket-chat/:id.
-- docs-viewer: صندوق كامل يفتح من الإعدادات والقائمة — يعرض X1/X2 (markdown بreact-markdown+remark-gfm) بفهرس جانبي على سطح المكتب وقائمة منسدلة على الجوال.
+- ~~docs-viewer~~: **حُذف من الإنتاج (2026-09-13)** مع مساريه X1/X2 — الوثائق الهندسية تبقى في `docs/` بالمستودع.
 
 ### لوحات الأدوار (غير CUSTOMER): تخطيط سطح مكتب (Sidebar RTL + جداول):
 - console: حسب الدور: ADMIN → (overview/users/kyc/agents/transactions/rules[حدود/رسوم/صرف/خدمات]/audit/pending/tickets)؛ COMPLIANCE → (overview/m-users قراءة/kyc/audit/m-transactions)؛ SUPPORT → (tickets فقط)؛ AGENT → بوابة الوكيل (overview/queue/commissions).
@@ -221,7 +233,7 @@
 - خط Cairo (مهيأ في globals.css بfont-cairo). أرقام tabular-nums.
 - Radius: بطاقات 16، أزرار 12، شرائح كامل، Sheets 24 أعلى. ظلال خفيفة. لمس ≥44px.
 - المكونات العشرة القياسية (PrimaryActionButton/AmountPad/CurrencyTabs/TransactionRow/StatusChip/ReceiptCard/OTPInput/PINPad/EmptyState/ErrorState) — تُبنى مرة في `src/components/app/ui/*` وتستعمل في كل مكان.
-- سطح المكتب: هاتف بإطار أنيق وسط لوحة هوية جانبية (الشعار+وصف+حسابات دخول سريع+زر الوثائق)؛ الجوال: تجربة كاملة بلا إطار. الرقم السري للعرض المفرد لا يظهر أبدا.
+- سطح المكتب: هاتف بإطار أنيق وسط لوحة هوية جانبية (الشعار+وصف)؛ الجوال: تجربة كاملة بلا إطار. الرقم السري للعرض المفرد لا يظهر أبدا. **(تحديث 2026-09-13:** بطاقات «حسابات دخول سريع» وزر الوثائق أزيلت من اللوحة الجانبية — لا قنوات دخول تجريبية في الإنتاج.**)**
 
 ## 8. ملكية الملفات (منع تعارض الوكلاء)
 

@@ -6,7 +6,10 @@
 #   1) التحقق من متغير DATABASE_URL (يأتي من .env.production عبر env_file)
 #   2) التحقق من وجود ملف قاعدة البيانات في وحدة التخزين (/app/db)
 #   3) إن غاب الملف → إنشاء المخطط عبر bunx prisma db push --accept-data-loss
-#   4) تشغيل خادم Next standalone عبر bun (exec ليصبح PID الرئيسي)
+#   4) ضمان APP_KEY (مفتاح تشفير أسرار TOTP): من البيئة أو توليد دائم
+#      في /app/db/.app-key داخل وحدة التخزين (بقاية ثابتة عبر إعادة التشغيل)
+#   5) ضمان مجلد رفع وثائق KYC (/app/uploads) على وحدة تخزين منفصلة
+#   6) تشغيل خادم Next standalone عبر bun (exec ليصبح PID الرئيسي)
 #
 # ملاحظة: لا قاعدة بيانات داخل الصورة — المخطط يُنشأ عند أول تشغيل فقط،
 # ثم تُستخدم نفس الملف عبر وحدة التخزين المسماة app-db في كل إعادة تشغيل.
@@ -59,7 +62,35 @@ else
   fi
 fi
 
-# --- 5) معالجة HOSTNAME ---
+# --- 5) APP_KEY (مفتاح تشفير أسرار المصادقة TOTP) ---
+# أولوية: قيمة البيئة الصريحة (النسخ الاحتياطية المدارة) > ملف دائم في
+# وحدة تخزين القاعدة > توليد جديد يُحفظ في الملف (أول تشغيل).
+APP_KEY_FILE="/app/db/.app-key"
+if [[ -z "${APP_KEY:-}" ]]; then
+  if [[ -f "$APP_KEY_FILE" ]]; then
+    # strip أي أسطر جديدة
+    APP_KEY="$(head -n1 "$APP_KEY_FILE" | tr -d '[:space:]')"
+    log "APP_KEY محمّل من ملف المفتاح الدائم"
+  else
+    APP_KEY="$(openssl rand -base64 48 | tr -d '\n' | tr '+/' '-_')"
+    printf '%s\n' "$APP_KEY" > "$APP_KEY_FILE"
+    chmod 600 "$APP_KEY_FILE"
+    log "APP_KEY مولَّد جديد وحُفظ في ${APP_KEY_FILE} (أدرجه في النسخ الاحتياطية)"
+  fi
+  export APP_KEY
+else
+  log "APP_KEY معيَّن من البيئة"
+fi
+if [[ ${#APP_KEY} -lt 32 ]]; then
+  log "خطأ: APP_KEY أقصر من 32 محرفاً — عيّن قيمة قوية أو أزل المتغير ليتولد تلقائياً"
+  exit 1
+fi
+
+# --- 5ب) مجلد رفع وثائق KYC ---
+mkdir -p /app/uploads/kyc
+chown -R bun:bun /app/uploads
+
+# --- 6) معالجة HOSTNAME ---
 # خادم Next standalone يستمع على HOSTNAME، وDocker يعيّنه افتراضياً بمعرّف
 # الحاوية — نضبط الربط على كل الواجهات داخل الحاوية (الصحيح خلف وكيل عكسي)
 # ما لم يضبط المستخدم HOSTNAME صراحةً إلى قيمة أخرى في .env.production
@@ -68,6 +99,6 @@ if [[ -z "${HOSTNAME:-}" || "${HOSTNAME}" == "$(cat /etc/hostname 2>/dev/null ||
   log "HOSTNAME=0.0.0.0 (الاستماع على كل الواجهات داخل الحاوية)"
 fi
 
-# --- 6) تشغيل الخادم (exec ليستلم الإشارات مباشرة) ---
+# --- 7) تشغيل الخادم (exec ليستلم الإشارات مباشرة) ---
 log "تشغيل الخادم على المنفذ ${PORT:-3000} ..."
 exec bun /app/.next/standalone/server.js

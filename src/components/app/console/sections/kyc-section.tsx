@@ -1,14 +1,17 @@
 /**
- * محفظة الجنوب — قسم طابور KYC (M4 + M5) — 8-d
+ * محفظة الجنوب — قسم طابور KYC (M4 + M5) — 8-d + 12-g
  * تبويبات (قيد المراجعة/معتمد/مرفوض) + بطاقات طلبات التوثيق بكل بياناتها
  * (الاسم/الهاتف/نوع ورقم الوثيقة المقنّن/المحافظة/المهنة/الدخل/تاريخ التقديم)
+ * + مستندات مرفقة حقيقية (12-g): مصغّرات الوثيقة والصورة الشخصية تُجلب عبر
+ * api.getBlob (قناة x-sw-session نفسها) من /api/kyc/file — والنقر يفتح معاينة
+ * بالحجم الكامل في حوار فوق الصفحة مع فتح في تبويب جديد.
  * + زرا "اعتماد" و"رفض" (M5): الرفض يتطلب note إلزامية، الاعتماد اختيارية.
  * يظهر لADMIN وCOMPLIANCE (كلاهما مخوّل على القرار خادمياً).
  */
 "use client";
 
-import { useState } from "react";
-import { BadgeCheck, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BadgeCheck, ImageOff, Maximize2, X, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import type { AdminKycRow, CurrencyCode, KycSubmissionView, UserRole } from "@/lib/api-types";
 import { formatMoney } from "@/lib/api-types";
@@ -24,6 +27,7 @@ const ID_TYPE_LABELS: Record<string, string> = {
 };
 
 type KycTab = "PENDING" | "APPROVED" | "REJECTED";
+type KycDocKind = "doc" | "selfie";
 
 const TABS: { value: KycTab; label: string }[] = [
   { value: "PENDING", label: "قيد المراجعة" },
@@ -41,11 +45,183 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+/** مسار ملف KYC المحمي — يُجلب عبر قناة الجلسة (x-sw-session) وليس <img> مباشرة */
+function kycFileUrl(userId: string, kind: KycDocKind): string {
+  return `/api/kyc/file?userId=${encodeURIComponent(userId)}&kind=${kind}`;
+}
+
+/** مصغّرة مستند مرفق: تحميل blob → object URL، وإخفاء مهذب عند غياب الملف
+ *  (طلبات Alpha القديمة قبل الرفع الفعلي) — النقر يفتح المعاينة الكاملة */
+function KycDocThumb({
+  userId,
+  kind,
+  label,
+  onOpen,
+}: {
+  userId: string;
+  kind: KycDocKind;
+  label: string;
+  onOpen: (kind: KycDocKind) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    api
+      .getBlob(kycFileUrl(userId, kind))
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [userId, kind]);
+
+  if (failed) {
+    // لا ملف لهذا الطلب (تقديم قديم بلا رفع فعلي) — عرض مهذب بلا كسر
+    return (
+      <div
+        title="لا يوجد ملف مرفوع لهذا الطلب"
+        className="flex h-[96px] w-[112px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#E8E6E1] bg-[#FAF9F6]/60 text-[#A3A09B]"
+      >
+        <ImageOff strokeWidth={1.5} className="h-4 w-4" />
+        <span className="text-[10.5px] font-bold">{label}</span>
+        <span className="text-[10px] font-medium">غير مرفق</span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => url && onOpen(kind)}
+      disabled={!url}
+      title={`عرض ${label} بالحجم الكامل`}
+      className="group flex w-[112px] flex-col items-center gap-1 text-center"
+    >
+      {url ? (
+        <span className="relative block">
+          <img
+            src={url}
+            alt={label}
+            className="h-[96px] w-[112px] rounded-xl border border-[#E8E6E1] bg-white object-cover transition-colors group-hover:border-[#C9A227]/70"
+          />
+          <span className="absolute bottom-1 left-1 flex h-6 w-6 items-center justify-center rounded-lg bg-[#0B0B0C]/60 text-white opacity-0 transition-opacity group-hover:opacity-100">
+            <Maximize2 strokeWidth={1.75} className="h-3.5 w-3.5" />
+          </span>
+        </span>
+      ) : (
+        <Skeleton className="h-[96px] w-[112px] rounded-xl" />
+      )}
+      <span className="text-[10.5px] font-bold text-[#5C5A56] group-hover:text-[#8A6E14]">{label}</span>
+    </button>
+  );
+}
+
+/** معاينة المستند بالحجم الكامل — حوار فوق الصفحة (Escape/النقر خارجها للإغلاق) */
+function KycDocLightbox({
+  userId,
+  kind,
+  title,
+  onClose,
+}: {
+  userId: string;
+  kind: KycDocKind;
+  title: string;
+  onClose: () => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // إغلاق بزر Escape — إمكانية وصول (نفس نمط DialogShell)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // جلب نسخة خاصة بالحوار (مستقلة عن عمر المصغّرة) — تُلغى عند الإغلاق
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    api
+      .getBlob(kycFileUrl(userId, kind))
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setError("تعذّر تحميل المستند — أعد المحاولة أو افتح التبويب من جديد");
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [userId, kind]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0B0C]/60 p-4 backdrop-blur-[2px]"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="sw-fade-in flex max-h-full w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-[#E8E6E1] bg-white shadow-[0_24px_60px_rgba(11,11,12,0.25)]">
+        <header className="flex items-center justify-between gap-3 border-b border-[#F0EEE9] px-5 py-3.5">
+          <h3 className="min-w-0 truncate text-[15px] font-extrabold text-[#0B0B0C]">{title}</h3>
+          <div className="flex shrink-0 items-center gap-2">
+            {url ? (
+              <ConsoleButton size="sm" variant="ghost" onClick={() => window.open(url, "_blank", "noopener")}>
+                فتح في تبويب جديد
+              </ConsoleButton>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="إغلاق المعاينة"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E8E6E1] bg-white text-[#5C5A56] transition-colors hover:border-[#C9A227]/60 hover:text-[#8A6E14]"
+            >
+              <X strokeWidth={1.75} className="h-4 w-4" />
+            </button>
+          </div>
+        </header>
+        <div className="gold-scroll max-h-[72vh] overflow-auto bg-[#FAF9F6] p-4">
+          {error ? (
+            <p className="py-12 text-center text-[14px] font-semibold text-[#B91C1C]">{error}</p>
+          ) : url ? (
+            <img
+              src={url}
+              alt={title}
+              className="mx-auto max-h-[64vh] w-auto max-w-full rounded-xl border border-[#E8E6E1] bg-white object-contain"
+            />
+          ) : (
+            <Skeleton className="mx-auto h-[420px] w-full max-w-[560px] rounded-xl" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function KycSection({ role: _role }: { role: UserRole }) {
   const [tab, setTab] = useState<KycTab>("PENDING");
   const { data, loading, error, retry } = useApiData<AdminKycRow[]>(`/api/admin/kyc?status=${tab}`);
 
   const [decision, setDecision] = useState<{ row: AdminKycRow; kind: "APPROVE" | "REJECT" } | null>(null);
+  const [preview, setPreview] = useState<{ row: AdminKycRow; kind: KycDocKind } | null>(null);
   const runner = useActionRunner();
 
   const submitDecision = async (note: string) => {
@@ -67,6 +243,9 @@ export function KycSection({ role: _role }: { role: UserRole }) {
       retry();
     }
   };
+
+  const docLabel = (kind: KycDocKind): string =>
+    kind === "doc" ? "بطاقة الهوية" : "صورة شخصية";
 
   return (
     <div className="relative flex flex-col gap-4">
@@ -145,6 +324,26 @@ export function KycSection({ role: _role }: { role: UserRole }) {
                   </DetailRow>
                 </div>
 
+                {/* المستندات المرفقة — رؤية فعلية لفاتورة القرار (M5 / 12-g) */}
+                <div className="flex items-start gap-3 rounded-xl border border-[#F0EEE9] bg-[#FAF9F6] p-2.5">
+                  <KycDocThumb
+                    userId={row.userId}
+                    kind="doc"
+                    label="بطاقة الهوية"
+                    onOpen={(k) => setPreview({ row, kind: k })}
+                  />
+                  <KycDocThumb
+                    userId={row.userId}
+                    kind="selfie"
+                    label="صورة شخصية"
+                    onOpen={(k) => setPreview({ row, kind: k })}
+                  />
+                  <p className="min-w-0 flex-1 self-center text-[11px] font-medium leading-5 text-[#A3A09B]">
+                    اطّلع على المستندات قبل القرار — الصور محمية بصلاحيات وصول
+                    ولا تُخزَّن في المتصفح.
+                  </p>
+                </div>
+
                 {/* أزرار القرار — للطلبات قيد المراجعة فقط */}
                 {tab === "PENDING" ? (
                   <div className="mt-auto flex flex-row-reverse items-center justify-start gap-2 border-t border-[#F0EEE9] pt-3">
@@ -198,6 +397,16 @@ export function KycSection({ role: _role }: { role: UserRole }) {
           setDecision(null);
         }}
       />
+
+      {/* معاينة المستند بالحجم الكامل */}
+      {preview ? (
+        <KycDocLightbox
+          userId={preview.row.userId}
+          kind={preview.kind}
+          title={`${docLabel(preview.kind)} — ${preview.row.fullName}`}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
     </div>
   );
 }

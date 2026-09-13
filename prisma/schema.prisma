@@ -40,9 +40,15 @@ model User {
   governorate      String?
   locale           String    @default("ar")
   pinHash          String?
+  // محجوز لـWebAuthn لاحقاً (بلا استخدام حالياً)
   biometricEnabled Boolean   @default(false)
   pinAttempts      Int       @default(0)
   pinLockedUntil   DateTime?
+  // المصادقة الثنائية TOTP (RFC 6238) — السر مشفّر AES-256-GCM بمفتاح APP_KEY
+  totpSecretEnc    String?
+  totpConfirmedAt  DateTime?
+  // آخر خطوة زمنية ناجحة (منع إعادة استخدام الرمز نفسه)
+  totpLastStep     Int?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -60,27 +66,58 @@ model User {
   ticketMessages   TicketMessage[]
   auditLogs        AuditLog[]       @relation("AuditActor")
   commissions      CommissionEntry[]
+  recoveryCodes    RecoveryCode[]
 }
 
 model OtpCode {
   id         String    @id @default(cuid())
   phone      String
-  code       String // 6 أرقام
-  // REGISTER | LOGIN
+  code       String
+  // REENROLL: رمز تفعيل المصادقة يصدره الدعم بعد التحقق (24 ساعة)
   purpose    String
   attempts   Int       @default(0)
-  expiresAt  DateTime // 5 دقائق
+  expiresAt  DateTime
   consumedAt DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([phone, purpose, createdAt])
 }
 
+// رمز استرداد لمرة واحدة (فقدان جهاز المصادقة) — مخزّن ملبداً scrypt
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// أحداث أمنية (محاولات دخول فاشلة، قفل، إعادة تعيين مصادقة…)
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  // LOGIN_FAIL | LOGIN_LOCK | LOGIN_SUCCESS | REGISTER |
+  // TOTP_RESET | RECOVERY_USED | RECOVERY_REGEN |
+  // REENROLL_ISSUED | REENROLL_USED | ADMIN_IP_DENIED
+  kind      String
+  phone     String?
+  userId    String?
+  ip        String?
+  metaJson  String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([kind, createdAt])
+}
+
 model Session {
   id          String   @id @default(cuid())
   token       String   @unique
   userId      String
-  deviceLabel String   @default("متصفح الويب — Alpha")
+  deviceLabel String   @default("متصفح الويب")
   active      Boolean  @default(true)
   // إنتاج: الجلسة (بقناتيها كوكي وترويسة) تنتهي بعد 7 أيام كحد أقصى
   // — القناة الاحتياطية x-sw-session كانت خالدة قبل هذه الإضافة (NFR-SEC-004)

@@ -67,7 +67,7 @@ export function ReceiptCard({
   const handleShare = async () => {
     const text =
       shareText ??
-      `${title} — المرجع ${reference} — محفظة الجنوب (Alpha تجريبي)`;
+      `${title} — المرجع ${reference} — محفظة الجنوب`;
     setSharing(true);
     try {
       if (typeof navigator !== "undefined" && "share" in navigator) {

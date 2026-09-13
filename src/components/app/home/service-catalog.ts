@@ -14,7 +14,6 @@ import {
   ArrowUpFromLine,
   Banknote,
   Bell,
-  BookOpen,
   FileText,
   LifeBuoy,
   MapPin,
@@ -171,14 +170,6 @@ export const SERVICE_CATALOG: CatalogService[] = [
     description: "الأسئلة الشائعة وتذاكر الدعم",
     icon: LifeBuoy,
     screen: "help",
-    group: "account",
-  },
-  {
-    stateKey: null,
-    title: "الوثائق الهندسية",
-    description: "عقود المشروع السبعة كاملة",
-    icon: BookOpen,
-    screen: "docs",
     group: "account",
   },
 ];

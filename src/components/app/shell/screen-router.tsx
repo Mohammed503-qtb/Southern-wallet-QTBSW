@@ -15,10 +15,11 @@ import { ScreenErrorBoundary } from "./screen-error-boundary";
 import { SplashScreen } from "@/components/app/auth/splash-screen";
 import { OnboardingScreen } from "@/components/app/auth/onboarding-screen";
 import { LoginScreen } from "@/components/app/auth/login-screen";
-import { OtpScreen } from "@/components/app/auth/otp-screen";
 import { RegisterScreen } from "@/components/app/auth/register-screen";
+import { TotpVerifyScreen } from "@/components/app/auth/totp-verify-screen";
+import { TotpEnrollScreen } from "@/components/app/auth/totp-enroll-screen";
+import { RecoveryCodesScreen } from "@/components/app/auth/recovery-codes-screen";
 import { PinCreateScreen } from "@/components/app/auth/pin-create-screen";
-import { BiometricScreen } from "@/components/app/auth/biometric-screen";
 
 import { HomeScreen } from "@/components/app/home/home-screen";
 import { ServicesScreen } from "@/components/app/home/services-screen";
@@ -61,7 +62,6 @@ import { SettingsScreen } from "@/components/app/features/account/settings-scree
 import { HelpScreen } from "@/components/app/features/account/help-screen";
 import { TicketNewScreen } from "@/components/app/features/account/ticket-new-screen";
 import { TicketChatScreen } from "@/components/app/features/account/ticket-chat-screen";
-import { DocsScreen } from "@/components/app/features/account/docs-screen";
 
 // لوحات الأدوار — console (8-d)
 import { ConsoleApp } from "@/components/app/console/console-app";
@@ -71,10 +71,11 @@ export const SCREEN_TITLES: Record<ScreenKey, string> = {
   splash: "البداية",
   onboarding: "التعريف",
   login: "تسجيل الدخول",
-  otp: "رمز التحقق",
   register: "إنشاء حساب جديد",
+  "totp-verify": "رمز المصادقة",
+  "totp-enroll": "تفعيل المصادقة",
+  "recovery-codes": "رموز الاسترداد",
   "pin-create": "إنشاء رمز PIN",
-  biometric: "تفعيل البصمة",
   home: "الرئيسية",
   services: "الخدمات",
   "wallet-details": "تفاصيل المحفظة",
@@ -110,7 +111,6 @@ export const SCREEN_TITLES: Record<ScreenKey, string> = {
   help: "مركز المساعدة",
   "ticket-new": "تذكرة دعم جديدة",
   "ticket-chat": "محادثة التذكرة",
-  docs: "الوثائق الهندسية",
   console: "لوحة الإدارة",
 };
 
@@ -140,17 +140,17 @@ const SC_IDS: Partial<Record<ScreenKey, string>> = {
   help: "SC-43",
   "ticket-new": "SC-44",
   "ticket-chat": "SC-45",
-  docs: "X1/X2",
 };
 
 const screens: Record<ScreenKey, () => ReactNode> = {
   splash: () => <SplashScreen />,
   onboarding: () => <OnboardingScreen />,
   login: () => <LoginScreen />,
-  otp: () => <OtpScreen />,
   register: () => <RegisterScreen />,
+  "totp-verify": () => <TotpVerifyScreen />,
+  "totp-enroll": () => <TotpEnrollScreen />,
+  "recovery-codes": () => <RecoveryCodesScreen />,
   "pin-create": () => <PinCreateScreen />,
-  biometric: () => <BiometricScreen />,
   home: () => <HomeScreen />,
   services: () => <ServicesScreen />,
   "wallet-details": () => <WalletDetailsScreen />,
@@ -189,7 +189,6 @@ const screens: Record<ScreenKey, () => ReactNode> = {
   help: () => <HelpScreen />,
   "ticket-new": () => <TicketNewScreen />,
   "ticket-chat": () => <TicketChatScreen />,
-  docs: () => <DocsScreen />,
   // console (8-d)
   console: () => <ConsoleApp />,
 };

@@ -29,7 +29,7 @@ export function MyQrScreen() {
   const qrSrc = myPhone ? `/api/qr?text=${encodeURIComponent(`SWPAY:${myPhone}`)}&size=260` : "";
 
   const sharePhone = async () => {
-    const text = `رقم محفظتي في محفظة الجنوب: ${myPhone} — أرسل التحويل إلى هذا الرقم (Alpha تجريبي)`;
+    const text = `رقم محفظتي في محفظة الجنوب: ${myPhone} — أرسل التحويل إلى هذا الرقم`;
     try {
       if (typeof navigator !== "undefined" && "share" in navigator) {
         try {

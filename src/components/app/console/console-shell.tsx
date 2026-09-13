@@ -24,6 +24,7 @@ import { RulesSection } from "./sections/rules-section";
 import { PendingSection } from "./sections/pending-section";
 import { RemitInSection } from "./sections/remit-in-section";
 import { AuditSection } from "./sections/audit-section";
+import { SecurityEventsSection } from "./sections/security-events-section";
 import { TicketsSection } from "./sections/tickets-section";
 
 /** صورة المستخدم الدائرية (الحرف الأول على أسود بحد ذهبي) */
@@ -108,6 +109,8 @@ export function ConsoleShell() {
         return <RemitInSection />;
       case "audit":
         return <AuditSection />;
+      case "security":
+        return <SecurityEventsSection />;
       case "tickets":
         return <TicketsSection />;
       default:
@@ -127,7 +130,7 @@ export function ConsoleShell() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-[15px] font-extrabold text-white">محفظة الجنوب</p>
-              <p className="text-[11.5px] font-semibold text-[#C9A227]">لوحة الإدارة · Alpha</p>
+              <p className="text-[11.5px] font-semibold text-[#C9A227]">لوحة الإدارة</p>
             </div>
           </div>
 

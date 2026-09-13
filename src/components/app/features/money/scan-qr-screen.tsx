@@ -3,17 +3,16 @@
  * وضعان:
  * (أ) رمز استلامي: بطاقة QR كبيرة SWPAY:<هاتفي> من /api/qr + مشاركة الرقم.
  * (ب) مسح: كاميرا عبر BarcodeDetector إن توفرت (ب fallback لطيف) +
- * إدخال يدوي للرقم + أزرار محاكاة تجريبية.
+ * إدخال يدوي للرقم.
  * التوجيه (قرار 9-c — المسار السلس): عند قراءة SWPAY:<phone> أو إدخاله
  * يدوياً ننتقل دائماً إلى pay-merchant بpayload — وشاشة الدفع نفسها تفصل:
  * تاجر → تدفق الدفع، مستخدم عادي → تعرض زر «تحويل عادي» إلى transfer.
- * (أزرار المحاكاة: عمالاء → transfer كما كان، تجار → pay-merchant مباشرة.)
  */
 
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, CameraOff, Copy, QrCode, ScanLine, Share2, UserRound } from "lucide-react";
+import { Camera, CameraOff, Copy, QrCode, ScanLine, Share2 } from "lucide-react";
 import { useAppStore } from "@/lib/app-store";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -33,13 +32,6 @@ type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDete
 
 type Mode = "my" | "scan";
 
-const DEMO_CONTACTS = [
-  { name: "محمد", phone: "770000004", full: "محمد سعيد العمودي", kind: "customer" as const },
-  { name: "نورة", phone: "770000005", full: "نورة عبدالله الكثيري", kind: "customer" as const },
-  { name: "متجر الجنوب", phone: "770000020", full: "متجر الجنوب للأغذية", kind: "merchant" as const },
-  { name: "صيدلية الشفاء", phone: "770000021", full: "صيدلية الشفاء", kind: "merchant" as const },
-];
-
 export function ScanQrScreen() {
   const params = useAppStore((s) => s.params);
   const me = useAppStore((s) => s.me);
@@ -56,7 +48,7 @@ export function ScanQrScreen() {
 
   // ===== مشاركة رقمي =====
   const sharePhone = async () => {
-    const text = `رقم محفظتي في محفظة الجنوب: ${myPhone} — أرسل التحويل إلى هذا الرقم (Alpha تجريبي)`;
+    const text = `رقم محفظتي في محفظة الجنوب: ${myPhone} — أرسل التحويل إلى هذا الرقم`;
     try {
       if (typeof navigator !== "undefined" && "share" in navigator) {
         try {
@@ -79,16 +71,6 @@ export function ScanQrScreen() {
       toast({ title: "تم نسخ الرقم", description: myPhone });
     } catch {
       toast({ title: "تعذّر النسخ", variant: "destructive" });
-    }
-  };
-
-  /** عميل عادي → تحويل عادي؛ تاجر → شاشة الدفع للتاجر (payload SWPAY) */
-  const goContact = (c: (typeof DEMO_CONTACTS)[number]) => {
-    if (c.phone.length !== 9) return;
-    if (c.kind === "merchant") {
-      navigate("pay-merchant", { payload: `SWPAY:${c.phone}` });
-    } else {
-      navigate("transfer", { phone: c.phone });
     }
   };
 
@@ -116,7 +98,7 @@ export function ScanQrScreen() {
       const ctor = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
         setCameraState("unavailable");
-        setCameraMessage("المتصفح لا يدعم الكاميرا هنا — استعمل الإدخال اليدوي أو أزرار المحاكاة.");
+        setCameraMessage("المتصفح لا يدعم الكاميرا هنا — استعمل الإدخال اليدوي.");
         return;
       }
       try {
@@ -165,7 +147,7 @@ export function ScanQrScreen() {
       } catch {
         setCameraState("error");
         setCameraMessage(
-          "تعذّر تشغيل الكاميرا (ربما مرفوضة الصلاحية). استعمل الإدخال اليدوي أو أزرار المحاكاة.",
+          "تعذّر تشغيل الكاميرا (ربما مرفوضة الصلاحية). استعمل الإدخال اليدوي.",
         );
       }
     };
@@ -332,29 +314,6 @@ export function ScanQrScreen() {
                 متابعة للدفع / التحويل
               </PrimaryActionButton>
             </div>
-          </div>
-
-          {/* محاكاة تجريبية */}
-          <div className="rounded-2xl border border-[#C9A227]/30 bg-[#C9A227]/[0.05] p-4">
-            <p className="mb-2 text-[12.5px] font-bold text-[#8A6E14]">
-              تجربة Alpha — محاكاة قراءة رمز (حسابات Seed):
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_CONTACTS.map((c) => (
-                <button
-                  key={c.phone}
-                  type="button"
-                  onClick={() => goContact(c)}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A227]/40 bg-white px-3 text-[13px] font-bold text-[#141416] transition-colors hover:bg-[#FDFCFA]"
-                >
-                  <UserRound strokeWidth={1.5} className="h-4 w-4 text-[#C9A227]" />
-                  {c.name} · <span dir="ltr" className="tabular-nums">{c.phone}</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] font-medium leading-4 text-[#8A6E14]/80">
-              أول خانتين عملاء (تحويل عادي) والثانيتان تجار معتمدون (دفع QR)
-            </p>
           </div>
 
           <button

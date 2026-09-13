@@ -1,7 +1,7 @@
 /**
  * محفظة الجنوب — شاشة إنشاء رمز PIN (SC-06 Create PIN)
  * مرحلتان: إدخال رمز جديد (6 أرقام) ثم تأكيده — التطابق → POST /api/pin
- * → شاشة البصمة. عدم التطابق أو نمط ضعيف (تسلسل/تكرار) → رسالة وإعادة.
+ * → فتح التطبيق مباشرة (bootstrap). عدم التطابق أو نمط ضعيف → رسالة وإعادة.
  */
 "use client";
 
@@ -40,7 +40,7 @@ export function PinCreateScreen() {
     try {
       await api.post("/api/pin", { pin: value });
       toast({ title: "تم تعيين رمز PIN بنجاح", description: "احفظه جيداً — ستحتاجه لكل عملية حساسة" });
-      resetTo("biometric");
+      await useAppStore.getState().bootstrap();
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "تعذّر حفظ الرمز — حاول مجدداً";

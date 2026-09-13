@@ -2,19 +2,17 @@
  * محفظة الجنوب — شاشة إنشاء حساب جديد (SC-05 Register)
  * الاسم الكامل (حقلان: الاسم/اللقب) + المحافظة:
  * قائمة المحافظات الثماني داخل النطاق + خيار "محافظة أخرى (خارج نطاق الخدمة)"
- * (يكشف محافظات خارجية فرعية ويُظهر تحذيراً كهرمانياً بوضع الاطلاع فقط — AC-07).
- * المتابعة → POST /api/auth/otp (وضع REGISTER) → شاشة OTP → verify ينشئ الحساب.
+ * (يُظهر تحذيراً كهرمانياً بوضع الاطلاع فقط — AC-07).
+ * المتابعة → POST /api/auth/register → شاشة إلحاق المصادقة (totp-enroll).
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CircleAlert, TriangleAlert } from "lucide-react";
 import { useAppStore } from "@/lib/app-store";
 import { api, ApiError } from "@/lib/api";
-import {
-  IN_SCOPE_GOVERNORATES,
-  OUT_OF_SCOPE_EXAMPLES,
-} from "@/lib/api-types";
+import { IN_SCOPE_GOVERNORATES, OUT_OF_SCOPE_EXAMPLES } from "@/lib/api-types";
+import type { EnrollmentView } from "@/lib/api-types";
 import {
   Select,
   SelectContent,
@@ -34,19 +32,10 @@ const OUT_OF_SCOPE = OUT_OF_SCOPE_EXAMPLES.filter(
   (g) => !IN_SCOPE_GOVERNORATES.includes(g as (typeof IN_SCOPE_GOVERNORATES)[number]),
 );
 
-/** ثواني انتظار AUTH-004 من تفاصيل الخطأ (secondsRemaining أو retryAfterSeconds) */
-function readAuth004Seconds(details?: Record<string, string | number>): number {
-  for (const key of ["secondsRemaining", "retryAfterSeconds"]) {
-    const v = details?.[key];
-    if (typeof v === "number" && v > 0) return Math.round(v);
-  }
-  return 60;
-}
-
 export function RegisterScreen() {
   const resetTo = useAppStore((s) => s.resetTo);
   const navigate = useAppStore((s) => s.navigate);
-  const setPendingOtp = useAppStore((s) => s.setPendingOtp);
+  const setEnrollment = useAppStore((s) => s.setEnrollment);
   const setRegisterDraft = useAppStore((s) => s.setRegisterDraft);
 
   const [phone, setPhone] = useState("");
@@ -56,14 +45,7 @@ export function RegisterScreen() {
   const [outGovernorate, setOutGovernorate] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
-  const [cooldown, setCooldown] = useState(0);
   const [fieldError, setFieldError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
 
   const isOther = governorate === OTHER;
   const effectiveGovernorate = isOther ? outGovernorate : governorate;
@@ -71,7 +53,7 @@ export function RegisterScreen() {
   const phoneValid = /^7\d{8}$/.test(phone);
   const nameValid = firstName.trim().length >= 2 && lastName.trim().length >= 2;
   const govValid = isOther ? OUT_OF_SCOPE.includes(outGovernorate) : governorate !== "";
-  const formValid = phoneValid && nameValid && govValid && cooldown === 0;
+  const formValid = phoneValid && nameValid && govValid;
 
   const submit = async () => {
     if (!formValid) return;
@@ -80,29 +62,24 @@ export function RegisterScreen() {
     setLoading(true);
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
     try {
-      const data = await api.post<{ mode: "REGISTER" | "LOGIN"; devCode: string | null }>(
-        "/api/auth/otp",
-        { phone },
-      );
-      if (data.mode === "LOGIN") {
-        setError({
-          code: "AUTH-900",
-          message: "هذا الرقم مسجّل مسبقاً — سجّل الدخول بدلاً من إنشاء حساب جديد",
-        });
-        return;
-      }
-      // وضع REGISTER: خزّن بيانات النموذج ليُرفقها verify عند إنشاء الحساب
-      setRegisterDraft({ fullName, governorate: effectiveGovernorate });
-      setPendingOtp({ phone, mode: "REGISTER", devCode: data.devCode });
-      navigate("otp");
+      const data = await api.post<{ enrollment: EnrollmentView }>("/api/auth/register", {
+        phone,
+        fullName,
+        governorate: effectiveGovernorate,
+      });
+      // نجح إنشاء الحساب (أو تجديد تسجيل مهجور) → إلحاق المصادقة
+      setRegisterDraft(null);
+      setEnrollment({
+        phone,
+        mode: "REGISTER",
+        secret: data.enrollment.secret,
+        otpauthUrl: data.enrollment.otpauthUrl,
+        qrDataUrl: data.enrollment.qrDataUrl,
+      });
+      navigate("totp-enroll");
     } catch (err) {
       if (err instanceof ApiError) {
         setError({ code: err.code, message: err.message });
-        if (err.code === "AUTH-004") {
-          const retry =
-            readAuth004Seconds(err.details);
-          setCooldown(Math.max(1, Math.round(retry)));
-        }
       } else {
         setError({ code: "SYS-001", message: "تعذر بدء التسجيل — تحقق من اتصالك" });
       }
@@ -237,7 +214,7 @@ export function RegisterScreen() {
           <CircleAlert strokeWidth={1.5} className="mt-0.5 h-5 w-5 shrink-0 text-[#B91C1C]" />
           <div className="min-w-0">
             <p className="text-[13px] font-semibold leading-6 text-[#B91C1C]">{error.message}</p>
-            {error.code === "AUTH-900" ? (
+            {error.code === "AUTH-901" ? (
               <button
                 type="button"
                 onClick={() => resetTo("login")}
@@ -245,10 +222,6 @@ export function RegisterScreen() {
               >
                 الانتقال لتسجيل الدخول
               </button>
-            ) : cooldown > 0 ? (
-              <p className="mt-0.5 text-[12px] font-medium text-[#B45309]">
-                أعد المحاولة بعد <span className="tabular-nums font-bold">{cooldown}</span> ثانية
-              </p>
             ) : null}
           </div>
         </div>
@@ -264,9 +237,7 @@ export function RegisterScreen() {
           loading={loading}
           disabled={!formValid}
           disabledReason={
-            cooldown > 0
-              ? `انتظر ${cooldown} ثانية قبل إعادة المحاولة`
-              : !phoneValid
+            !phoneValid
                 ? "أدخل رقماً يمنياً صحيحاً (9 أرقام تبدأ بـ 7)"
                 : !nameValid
                   ? "أدخل الاسم واللقب (حرفان على الأقل لكل منهما)"

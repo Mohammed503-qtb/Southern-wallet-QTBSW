@@ -1,13 +1,14 @@
 /**
  * محفظة الجنوب — قسم المستخدمين (M2 + M3) — 8-d
  * بحث بالاسم/الهاتف + فلاتر (دور/حالة) + جدول (الاسم/الهاتف/الدور/الحالة/
- * KYC/المحافظة/رصيد YER/الانضمام). أزرار تجميد/فك التجميع (M3) تظهر لADMIN
- * فقط (COMPLIANCE قراءة فقط) وتمر عبر ReasonDialog بسبب إلزامي.
+ * KYC/المحافظة/رصيد YER/الانضمام). أزرار تجميد/فك التجميع (M3) وإعادة تعيين
+ * المصادقة (M10 — يصدر رمز تفعيل R+7 يُسلَّم للمستخدم بعد التحقق) تظهر
+ * لADMIN فقط (COMPLIANCE قراءة فقط) وتمر عبر ReasonDialog بسبب إلزامي.
  */
 "use client";
 
 import { useState } from "react";
-import { Snowflake, Sun } from "lucide-react";
+import { Copy, KeyRound, Snowflake, Sun } from "lucide-react";
 import { api } from "@/lib/api";
 import type { AdminUserRow, PublicUser, UserRole } from "@/lib/api-types";
 import { USER_ROLE_LABELS, formatMoney } from "@/lib/api-types";
@@ -15,6 +16,13 @@ import { formatShortDateTime } from "@/components/app/ui";
 import { toastSuccess } from "../console-hooks";
 import { useActionRunner, useDebounced, usePagedData } from "../console-hooks";
 import { ReasonDialog } from "../confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Column,
   ConsoleButton,
@@ -44,9 +52,17 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "CLOSED", label: "مغلق" },
 ];
 
-interface FreezeTarget {
+interface UserTarget {
   user: AdminUserRow;
-  action: "freeze" | "unfreeze";
+  action: "freeze" | "unfreeze" | "reset-totp";
+}
+
+/** نتيجة إعادة تعيين المصادقة — الرمز يُعرض مرة واحدة */
+interface ResetTotpResult {
+  reEnrollToken: string;
+  phone: string;
+  expiresAt: string;
+  note: string;
 }
 
 export function UsersSection({ role }: { role: UserRole }) {
@@ -63,13 +79,24 @@ export function UsersSection({ role }: { role: UserRole }) {
 
   const { items, nextCursor, loading, loadingMore, error, loadMore, refresh } = usePagedData<AdminUserRow>(path);
 
-  const [target, setTarget] = useState<FreezeTarget | null>(null);
+  const [target, setTarget] = useState<UserTarget | null>(null);
+  const [resetResult, setResetResult] = useState<ResetTotpResult | null>(null);
   const runner = useActionRunner();
 
   const isAdmin = role === "ADMIN";
 
   const submitFreeze = async (reason: string) => {
     if (!target) return;
+    if (target.action === "reset-totp") {
+      const result = await runner.run(() =>
+        api.post<ResetTotpResult>(`/api/admin/users/${target.user.id}/reset-totp`, { reason }),
+      );
+      if (result.ok) {
+        setResetResult(result.value);
+        setTarget(null);
+      }
+      return;
+    }
     const verb = target.action === "freeze" ? "freeze" : "unfreeze";
     const result = await runner.run(() =>
       api.post<PublicUser>(`/api/admin/users/${target.user.id}/${verb}`, { reason }),
@@ -162,15 +189,26 @@ export function UsersSection({ role }: { role: UserRole }) {
           return <span className="text-[12px] text-[#A3A09B]">—</span>;
         }
         return (
-          <ConsoleButton
-            variant="danger"
-            size="sm"
-            onClick={() => setTarget({ user: u, action: "freeze" })}
-            title="تجميد الحساب — M3"
-          >
-            <Snowflake strokeWidth={1.6} className="h-3.5 w-3.5" />
-            تجميد
-          </ConsoleButton>
+          <div className="flex items-center justify-center gap-1.5">
+            <ConsoleButton
+              variant="ghost"
+              size="sm"
+              onClick={() => setTarget({ user: u, action: "reset-totp" })}
+              title="إعادة تعيين المصادقة — يصدر رمز تفعيل بعد التحقق"
+            >
+              <KeyRound strokeWidth={1.6} className="h-3.5 w-3.5" />
+              تعيين المصادقة
+            </ConsoleButton>
+            <ConsoleButton
+              variant="danger"
+              size="sm"
+              onClick={() => setTarget({ user: u, action: "freeze" })}
+              title="تجميد الحساب — M3"
+            >
+              <Snowflake strokeWidth={1.6} className="h-3.5 w-3.5" />
+              تجميد
+            </ConsoleButton>
+          </div>
         );
       },
     });
@@ -215,17 +253,31 @@ export function UsersSection({ role }: { role: UserRole }) {
 
       <ReasonDialog
         open={target !== null}
-        title={target?.action === "freeze" ? "تجميد حساب" : "فك تجميد حساب"}
+        title={
+          target?.action === "freeze"
+            ? "تجميد حساب"
+            : target?.action === "reset-totp"
+              ? "إعادة تعيين المصادقة"
+              : "فك تجميد حساب"
+        }
         description={
           target
             ? `الحساب: ${target.user.fullName ?? "بلا اسم"} · ${target.user.phone}${
                 target.action === "freeze"
                   ? " — سيُنهي الخادم جلساته النشطة فوراً ويمنع دخوله الكامل."
-                  : " — سيُعيد تنشيط الحساب وعملياته المالية."
+                  : target.action === "reset-totp"
+                    ? " — تُبطل جلساته ومصادقته الحالية ويُصدر رمز تفعيل (R+7) صالح 24 ساعة. استخدمه فقط بعد التحقق من هوية المستخدم عبر قناة موثوقة."
+                    : " — سيُعيد تنشيط الحساب وعملياته المالية."
               }`
             : null
         }
-        confirmLabel={target?.action === "freeze" ? "تأكيد التجميد" : "تأكيد فك التجميد"}
+        confirmLabel={
+          target?.action === "freeze"
+            ? "تأكيد التجميد"
+            : target?.action === "reset-totp"
+              ? "تأكيد وإصدار رمز التفعيل"
+              : "تأكيد فك التجميد"
+        }
         confirmVariant={target?.action === "freeze" ? "danger" : "primary"}
         busy={runner.busy}
         error={runner.error}
@@ -235,6 +287,60 @@ export function UsersSection({ role }: { role: UserRole }) {
           setTarget(null);
         }}
       />
+
+      {/* ===== نتيجة إعادة تعيين المصادقة — رمز التفعيل يُعرض مرة واحدة ===== */}
+      <Dialog open={resetResult !== null} onOpenChange={(o) => !o && setResetResult(null)}>
+        <DialogContent dir="rtl" className="max-w-md rounded-2xl p-5 text-right">
+          <DialogHeader className="items-center text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#C9A227]/35 bg-[#C9A227]/10 text-[#8A6E14]">
+              <KeyRound strokeWidth={1.5} className="h-6 w-6" />
+            </span>
+            <DialogTitle className="text-center text-[18px] font-bold">
+              رمز تفعيل المصادقة
+            </DialogTitle>
+            <DialogDescription className="text-center text-[13px] font-medium leading-6">
+              سلّم هذا الرمز للمستخدم{" "}
+              <span dir="ltr" className="font-bold tabular-nums">
+                +967 {resetResult?.phone}
+              </span>{" "}
+              بعد التحقق من هويته — يُستخدم مرة واحدة وينتهي خلال 24 ساعة.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#C9A227]/35 bg-[#C9A227]/[0.06] px-4 py-3">
+            <p dir="ltr" className="text-[20px] font-extrabold tracking-[0.18em] text-[#141416]">
+              {resetResult?.reEnrollToken}
+            </p>
+            <button
+              type="button"
+              aria-label="نسخ رمز التفعيل"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(resetResult?.reEnrollToken ?? "");
+                  toastSuccess("نُسخ رمز التفعيل", "لا تشاركه إلا مع المستخدم المتحقق منه");
+                } catch {
+                  /* تجاهل */
+                }
+              }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[#5C5A56]"
+            >
+              <Copy strokeWidth={1.5} className="h-5 w-5" />
+            </button>
+          </div>
+
+          <p className="mt-2 text-center text-[11.5px] font-medium leading-5 text-[#A3A09B]">
+            {resetResult?.note}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setResetResult(null)}
+            className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl bg-[#0B0B0C] text-[14px] font-bold text-white"
+          >
+            فهمت — إغلاق
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

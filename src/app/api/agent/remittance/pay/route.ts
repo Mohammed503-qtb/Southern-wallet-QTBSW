@@ -73,7 +73,7 @@ export const POST = route(async (req) => {
   const paid = await db.$transaction(async (tx) => {
     const fresh = await tx.remittance.findUnique({ where: { id: rem.id } });
     if (!fresh || fresh.status !== "PENDING") {
-      throw new RouteError("CWD-002", 409, { status: fresh?.status });
+      throw new RouteError("CWD-002", 409, { status: fresh?.status ?? "UNKNOWN" });
     }
     const float = await getOrCreateAgentFloatWallet(tx, user.id);
     if (float.balanceMinor < fresh.amountMinor) {

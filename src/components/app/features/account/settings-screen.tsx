@@ -1,15 +1,15 @@
 /**
  * محفظة الجنوب — الإعدادات (SC-42)
  * صفوف: اللغة (Select عربي/English — تُخزَّن في localStorage sw_lang مع ملاحظة
- * «الترجمة الكاملة في Beta»)، إخفاء الرصيد الافتراضي (Switch يربط
+ * «الترجمة الكاملة قادمة»)، إخفاء الرصيد الافتراضي (Switch يربط
  * store.toggleBalanceHidden)، إشعارات محلية (Switch يخزَّن محلياً فقط)،
- * «حول التطبيق» (Sheet: الإصدار Alpha 0.1.0 + com.janoub.wallet + الشعار) +
- * روابط للوثائق والدعم.
+ * «حول التطبيق» (Sheet: الإصدار 1.0.0 + com.janoub.wallet + الشعار) +
+ * رابط الدعم.
  */
 "use client";
 
 import { useState } from "react";
-import { Bell, BookOpen, EyeOff, Info, Languages, LifeBuoy } from "lucide-react";
+import { Bell, EyeOff, Info, Languages, LifeBuoy } from "lucide-react";
 import { useAppStore } from "@/lib/app-store";
 import { ScreenHeader } from "@/components/app/ui/screen-header";
 import { SectionCard, SettingRow } from "./account-shared";
@@ -70,8 +70,8 @@ export function SettingsScreen() {
       title: next === "ar" ? "اللغة: العربية" : "Language: English",
       description:
         next === "ar"
-          ? "واجهة Alpha تعمل بالعربية الكاملة"
-          : "الترجمة الكاملة للإنجليزية قادمة في Beta — ستُحفظ تفضيلاتك",
+          ? "الواجهة تعمل بالعربية الكاملة"
+          : "الترجمة الكاملة للإنجليزية قادمة — ستُحفظ تفضيلاتك",
     });
   };
 
@@ -100,7 +100,7 @@ export function SettingsScreen() {
           <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
             <span className="text-[15px] font-semibold leading-5 text-[#141416]">اللغة</span>
             <span className="text-[12px] font-medium text-[#5C5A56]">
-              الترجمة الكاملة للإنجليزية في Beta
+              الترجمة الكاملة للإنجليزية قادمة
             </span>
           </span>
           <Select value={lang} onValueChange={changeLang}>
@@ -142,7 +142,7 @@ export function SettingsScreen() {
         <SettingRow
           icon={Bell}
           title="إشعارات هذا الجهاز"
-          subtitle="تفضيل محلي فقط في Alpha"
+          subtitle="تفضيل محلي على هذا الجهاز"
           chevron={false}
           trailing={
             <Switch
@@ -160,13 +160,6 @@ export function SettingsScreen() {
           title="حول التطبيق"
           subtitle="الإصدار والمعرّف والشعار"
           onClick={() => setAboutOpen(true)}
-        />
-
-        <SettingRow
-          icon={BookOpen}
-          title="الوثائق الهندسية"
-          subtitle="SRS والشاشات وكل وثائق المشروع"
-          onClick={() => navigate("docs")}
         />
 
         <SettingRow
@@ -188,15 +181,15 @@ export function SettingsScreen() {
               محفظة الجنوب
             </SheetTitle>
             <SheetDescription className="text-center text-[13.5px] font-medium">
-              محفظة رقمية يمنية جنوبية — Alpha تجريبي داخلي
+              محفظة رقمية يمنية جنوبية
             </SheetDescription>
           </SheetHeader>
 
           <div className="mt-3 divide-y divide-[#E8E6E1]/70 rounded-xl border border-[#E8E6E1] bg-white">
             {[
-              { label: "الإصدار", value: "Alpha 0.1.0" },
+              { label: "الإصدار", value: "1.0.0" },
               { label: "معرّف الحزمة", value: "com.janoub.wallet" },
-              { label: "بيئة التشغيل", value: "نظام نقدي مغلق تجريبي" },
+              { label: "بيئة التشغيل", value: "نظام نقدي رقمي مغلق" },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <span className="text-[13px] font-medium text-[#5C5A56]">{row.label}</span>

@@ -4,9 +4,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { SwRegister } from "@/components/app/shell/sw-register";
 
 export const metadata: Metadata = {
-  title: "محفظة الجنوب — محفظة إلكترونية لجنوب اليمن (Alpha)",
+  title: "محفظة الجنوب — محفظة إلكترونية لجنوب اليمن",
   description:
-    "محفظة الجنوب — محفظة إلكترونية لجنوب اليمن (Alpha تجريبي): تحويلات لحظية وحوالات نقدية عبر وكلاء معتمدين، فواتير وشحن ودفع للتاجر، بعملات الريال والريال السعودي والدولار.",
+    "محفظة الجنوب — محفظة إلكترونية لجنوب اليمن: تحويلات لحظية وحوالات نقدية عبر وكلاء معتمدين، فواتير وشحن ودفع للتاجر، بعملات الريال والريال السعودي والدولار.",
   applicationName: "محفظة الجنوب",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -25,7 +25,6 @@ export const metadata: Metadata = {
     "حوالات",
     "اليمن",
     "Digital Wallet",
-    "Alpha",
   ],
   icons: {
     icon: [

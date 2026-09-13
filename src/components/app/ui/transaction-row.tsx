@@ -12,8 +12,12 @@ import {
   ArrowUpFromLine,
   Banknote,
   ChevronLeft,
+  Landmark,
+  Phone,
   PiggyBank,
+  Receipt,
   Scale,
+  ScanLine,
   Send,
   Undo2,
   Wallet,
@@ -36,6 +40,13 @@ const TYPE_ICON: Record<TxType, typeof Send> = {
   SAVING_OUT: PiggyBank,
   FX_EXCHANGE: ArrowLeftRight,
   SYSTEM_ADJUST: Scale,
+  // خدمات المرحلة 2
+  BILL_PAY: Receipt,
+  TOPUP: Phone,
+  CARD_PURCHASE: ScanLine,
+  MERCHANT_PAY_OUT: Send,
+  MERCHANT_SALE_IN: Wallet,
+  REMIT_IN_CLAIM: Landmark,
 };
 
 export interface TransactionRowProps {

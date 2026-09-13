@@ -226,7 +226,7 @@ export function RemitInSection() {
           </ConsoleButton>
           <p className="text-[12px] font-medium text-[#8A8783]">
             {phoneValid && nameValid && amountValid
-              ? "سيُشعر المستلم برمز المطالبة (قناة التسليم في Alpha)"
+              ? "سيُشعر المستلم برمز المطالبة (قناة التسليم)"
               : "أكمل الهاتف (9 خانات مسجلة) واسم المرسل (3 أحرف+) والمبلغ"}
           </p>
         </div>
@@ -351,7 +351,7 @@ export function RemitInSection() {
                 </div>
               </div>
               <p className="mt-auto border-t border-[#F0EEE9] pt-2 text-[11.5px] font-medium text-[#8A8783]">
-                أُصدرت {formatDateTime(item.createdAt)} · الرسوم {formatMoney(item.feeMinor, item.currency)} (Beta)
+                أُصدرت {formatDateTime(item.createdAt)} · الرسوم {formatMoney(item.feeMinor, item.currency)}
               </p>
             </ConsoleCard>
           ))}

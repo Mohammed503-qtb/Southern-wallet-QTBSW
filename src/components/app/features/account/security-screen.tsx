@@ -1,13 +1,14 @@
 /**
  * محفظة الجنوب — الأمان (SC-40)
- * صفوف: تغيير PIN (Sheet بثلاث خطوات عبر PINPad: الحالي/الجديد/تأكيده —
- * A7 PUT /api/pin)، البصمة Switch (A9 — محاكاة فورية)، «إنهاء كل الجلسات
- * الأخرى» (من شاشة أجهزتي)، ومعلومات أمان تعريفية صغيرة (قواعد PIN والقفل).
+ * صفوف: المصادقة الثنائية (TOTP) + تغيير PIN (Sheet بثلاث خطوات عبر
+ * PINPad — A7 PUT /api/pin) + إعادة توليد رموز الاسترداد (A6 عبر رمز
+ * TOTP حالي) + «إنهاء كل الجلسات الأخرى» (من شاشة أجهزتي) + معلومات
+ * أمان تعريفية (قواعد PIN والقفل).
  */
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fingerprint, KeyRound, Lock, LogOut, ShieldCheck, Smartphone } from "lucide-react";
+import { KeyRound, LifeBuoy, Lock, LogOut, RefreshCw, ShieldCheck, Smartphone } from "lucide-react";
 import { useAppStore } from "@/lib/app-store";
 import { api, ApiError } from "@/lib/api";
 import { ErrorState } from "@/components/app/ui/error-state";
@@ -16,7 +17,6 @@ import { Skeleton } from "@/components/app/ui/skeleton";
 import { PINPad } from "@/components/app/ui/pin-pad";
 import { SectionCard, SettingRow } from "./account-shared";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +43,42 @@ export function SecurityScreen() {
   const [error, setError] = useState<string | null>(null);
   const [lockSeconds, setLockSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
+
+  // ===== Sheet إعادة توليد رموز الاسترداد =====
+  const [recoverySheetOpen, setRecoverySheetOpen] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [newCodes, setNewCodes] = useState<string[] | null>(null);
+
+  const resetRecoverySheet = () => {
+    setTotpCode("");
+    setRecoveryBusy(false);
+    setRecoveryError(null);
+    setNewCodes(null);
+  };
+
+  const regenRecovery = async () => {
+    if (totpCode.length !== 6 || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      const data = await api.post<{ recoveryCodes: string[] }>("/api/auth/recovery/regen", {
+        code: totpCode,
+      });
+      setNewCodes(data.recoveryCodes);
+      toast({ title: "صدرت رموز استرداد جديدة", description: "احفظها — القديمة أُبطلت" });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setRecoveryError(err.message);
+        if (err.code === "AUTH-002") setTotpCode("");
+      } else {
+        setRecoveryError("تعذّر إصدار الرموز — تحقق من اتصالك");
+      }
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
 
   // عدّاد تنازلي للقفل (PIN-002)
   useEffect(() => {
@@ -123,25 +159,6 @@ export function SecurityScreen() {
     }, 180);
   };
 
-  /** تبديل البصمة (A9) مع تحديث متفائل وسقوط عند الخطأ */
-  const toggleBiometric = async (next: boolean) => {
-    try {
-      await api.put("/api/me/biometric", { enabled: next });
-      await refreshMe();
-      toast({
-        title: next ? "تم تفعيل البصمة" : "تم تعطيل البصمة",
-        description: next
-          ? "يمكنك استخدام البصمة بدل الرمز في العمليات الحساسة (محاكاة Alpha)"
-          : "ستُطلب لوحة الرمز عند كل عملية حساسة",
-      });
-    } catch {
-      toast({
-        title: "تعذّر تحديث البصمة",
-        description: "حاول مرة أخرى",
-        variant: "destructive",
-      });
-    }
-  };
 
   if (!me) {
     return (
@@ -169,7 +186,7 @@ export function SecurityScreen() {
 
   return (
     <div className="mx-auto w-full max-w-[440px] px-4 pb-8">
-      <ScreenHeader title="الأمان" subtitle="رمز PIN والبصمة وإدارة جلستك" />
+      <ScreenHeader title="الأمان" subtitle="المصادقة الثنائية ورمز PIN وإدارة جلستك" />
 
       <div className="mt-4 space-y-2">
         <SettingRow
@@ -183,18 +200,20 @@ export function SecurityScreen() {
         />
 
         <SettingRow
-          icon={Fingerprint}
-          title="الدخول بالبصمة"
-          subtitle="محاكاة تجريبية في Alpha"
+          icon={ShieldCheck}
+          title="المصادقة الثنائية (TOTP)"
+          subtitle="مفعّلة — رمز من تطبيق المصادقة يتجدد كل 30 ثانية"
           chevron={false}
-          trailing={
-            <Switch
-              checked={user.biometricEnabled}
-              onCheckedChange={(v) => void toggleBiometric(v)}
-              aria-label="تفعيل البصمة"
-              className="h-6 w-11 data-[state=checked]:bg-[#0B0B0C] data-[state=unchecked]:bg-[#E8E6E1]"
-            />
-          }
+        />
+
+        <SettingRow
+          icon={RefreshCw}
+          title="إعادة توليد رموز الاسترداد"
+          subtitle="أبطل القديمة وأصدر 8 رموز جديدة (يتطلب رمز المصادقة الحالي)"
+          onClick={() => {
+            resetRecoverySheet();
+            setRecoverySheetOpen(true);
+          }}
         />
 
         <SettingRow
@@ -221,6 +240,10 @@ export function SecurityScreen() {
               {
                 icon: Smartphone,
                 text: "كل جهاز تسجّل منه الدخول يظهر في «أجهزتي» ويمكنك إنهاء جلسته في أي وقت.",
+              },
+              {
+                icon: LifeBuoy,
+                text: "فقدت جهاز المصادقة؟ استخدم رمز استرداد للدخول، أو تواصل مع الدعم لإعادة التفعيل.",
               },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-2.5">
@@ -305,6 +328,87 @@ export function SecurityScreen() {
             >
               إلغاء
             </button>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ===== Sheet إعادة توليد رموز الاسترداد ===== */}
+      <Sheet
+        open={recoverySheetOpen}
+        onOpenChange={(o) => {
+          setRecoverySheetOpen(o);
+          if (!o) resetRecoverySheet();
+        }}
+      >
+        <SheetContent side="bottom" className="max-h-[86dvh] overflow-y-auto rounded-t-3xl px-5 pb-7 pt-4">
+          <SheetHeader className="items-center text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#E8E6E1] bg-[#F7F6F2] text-[#5C5A56]">
+              <RefreshCw strokeWidth={1.5} className="h-6 w-6" />
+            </span>
+            <SheetTitle className="text-center text-[18px] font-bold">
+              إعادة توليد رموز الاسترداد
+            </SheetTitle>
+            <SheetDescription className="text-center text-[13px] font-medium">
+              {newCodes
+                ? "احفظ الرموز الجديدة الآن — لن تظهر مجدداً"
+                : "أدخل رمز المصادقة الحالي للتأكيد (من تطبيق المصادقة)"}
+            </SheetDescription>
+          </SheetHeader>
+
+          {newCodes ? (
+            <div className="mt-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                {newCodes.map((c) => (
+                  <div
+                    key={c}
+                    dir="ltr"
+                    className="flex h-[48px] items-center justify-center rounded-xl border border-[#E8E6E1] bg-white text-[16px] font-extrabold tracking-[0.12em] tabular-nums text-[#141416]"
+                  >
+                    {c}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRecoverySheetOpen(false);
+                  resetRecoverySheet();
+                }}
+                className="mt-4 flex min-h-11 w-full items-center justify-center rounded-xl bg-[#0B0B0C] text-[14px] font-bold text-white"
+              >
+                حفظتها — إغلاق
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <input
+                dir="ltr"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={totpCode}
+                onChange={(e) => {
+                  setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setRecoveryError(null);
+                }}
+                disabled={recoveryBusy}
+                placeholder="000000"
+                aria-label="رمز المصادقة الحالي"
+                className="h-[56px] w-full rounded-xl border border-[#E8E6E1] bg-white text-center text-[22px] font-extrabold tracking-[0.3em] tabular-nums text-[#141416] placeholder:text-[#A3A09B] focus:border-[#C9A227] focus:outline-none"
+              />
+              {recoveryError ? (
+                <p className="mt-2 text-center text-[13px] font-semibold text-[#B91C1C]">
+                  {recoveryError}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void regenRecovery()}
+                disabled={totpCode.length !== 6 || recoveryBusy}
+                className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl bg-[#C9A227] text-[14px] font-bold text-white disabled:opacity-50"
+              >
+                {recoveryBusy ? "جارٍ التحقق…" : "تأكيد وإصدار الرموز"}
+              </button>
+            </div>
           )}
         </SheetContent>
       </Sheet>

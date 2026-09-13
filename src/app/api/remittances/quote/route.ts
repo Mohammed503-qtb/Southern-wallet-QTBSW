@@ -18,7 +18,7 @@ export const POST = route(async (req) => {
   if (currency !== "YER") {
     throw new RouteError("SYS-001", 400, {
       field: "currency",
-      reason: "الحوالات في النسخة التجريبية بالريال اليمني فقط",
+      reason: "الحوالات حالياً بالريال اليمني فقط",
     });
   }
   const feeRule = await db.feeRule.findUnique({

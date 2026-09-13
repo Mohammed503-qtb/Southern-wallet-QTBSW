@@ -129,7 +129,7 @@ async function main(): Promise<void> {
       await tx.transaction.create({
         data: {
           ref: params.ref,
-          userId: ahmad.id,
+          userId: ahmad!.id,
           type: params.type,
           status: "COMPLETED",
           currency: "YER",
@@ -146,13 +146,13 @@ async function main(): Promise<void> {
       await postEntries(
         tx,
         [
-          { walletId: mainYER.id, direction: "DEBIT", amountMinor: params.amountMinor + params.feeMinor },
-          { walletId: feeYER.id, direction: "CREDIT", amountMinor: params.feeMinor },
-          { walletId: suspenseYER.id, direction: "CREDIT", amountMinor: params.amountMinor },
+          { walletId: mainYER!.id, direction: "DEBIT", amountMinor: params.amountMinor + params.feeMinor },
+          { walletId: feeYER!.id, direction: "CREDIT", amountMinor: params.feeMinor },
+          { walletId: suspenseYER!.id, direction: "CREDIT", amountMinor: params.amountMinor },
         ],
         { transactionRef: params.ref, currency: "YER" }
       );
-      await notify(tx, ahmad.id, params.notifyTitle, params.notifyBody, "TXN", params.ref, params.date);
+      await notify(tx, ahmad!.id, params.notifyTitle, params.notifyBody, "TXN", params.ref, params.date);
     });
     console.log(`   ✔ ${params.type} ${params.ref} — ${params.amountMinor}+${params.feeMinor} ر.ي`);
   }

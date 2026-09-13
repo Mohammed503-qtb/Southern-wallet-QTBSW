@@ -59,3 +59,10 @@ server.log
 /tool-results/
 *.pid
 .zscripts/dev.pid
+
+# KYC uploaded documents (user PII — never commit; keep dir via .gitkeep)
+uploads/*
+!uploads/.gitkeep
+db/custom.db
+
+db/*.db

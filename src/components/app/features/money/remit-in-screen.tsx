@@ -131,6 +131,7 @@ export function RemitInScreen() {
   const me = useAppStore((s) => s.me);
   const refreshMe = useAppStore((s) => s.refreshMe);
   const resetTo = useAppStore((s) => s.resetTo);
+  const navigate = useAppStore((s) => s.navigate);
   const list = useApiData<InboundRemittanceView[]>("/api/remit-in");
 
   const [step, setStep] = useState<Step>("claim");
@@ -200,7 +201,7 @@ export function RemitInScreen() {
             fields={[
               { label: "المبلغ المستلم", value: formatMoney(result.amountMinor, result.currency) },
               { label: "المرسل", value: result.senderName },
-              { label: "رسوم الاستلام", value: "مجانية (Beta)" },
+              { label: "رسوم الاستلام", value: "مجانية" },
               {
                 label: "رصيدك بعد الاستلام",
                 value: formatMoney(result.balanceMinor ?? 0, result.currency),

@@ -45,9 +45,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false, // إخفاء X-Powered-By
   compress: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // فحص TypeScript صارم مفروض في البناء (بلا تجاوز) — CI يفحص أيضاً
   reactStrictMode: false,
   async headers() {
     return [

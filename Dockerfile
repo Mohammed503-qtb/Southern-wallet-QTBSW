@@ -18,8 +18,6 @@
 #  • البذور (prisma/seed*.ts) تستورد ../src/lib/server/* بمسارات نسبية
 #    → ننسخ src/ و tsconfig.json إلى الصورة لتشغيلها عبر
 #    docker compose exec app bun prisma/seed.ts (اختياري — للتجربة فقط).
-#  • عارض الوثائق الداخلي يقرأ docs/*.md من process.cwd()/docs
-#    → ننسخ docs/ إلى /app/docs.
 # ============================================================
 
 # ---------------- المرحلة 1: البناء (builder) ----------------
@@ -118,8 +116,8 @@ COPY --from=builder --chown=bun:bun /app/prisma /app/prisma
 COPY --from=builder --chown=bun:bun /app/src /app/src
 COPY --from=builder --chown=bun:bun /app/tsconfig.json /app/tsconfig.json
 
-# وثائق المشروع — يقرؤها عارض الوثائق الداخلي من process.cwd()/docs
-COPY --from=builder --chown=bun:bun /app/docs /app/docs
+# مجلد رفع وثائق KYC — تُخزن الملفات في وحدة تخزين (uploads-data) لا داخل الصورة
+RUN mkdir -p /app/uploads && chown -R bun:bun /app/uploads
 
 # package.json الحقيقي (prisma ضمن dependencies) — يمنع bunx من الجلب من الشبكة
 COPY --from=builder --chown=bun:bun /app/package.json /app/package.json

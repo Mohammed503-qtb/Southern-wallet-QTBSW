@@ -65,3 +65,28 @@ export function clientIp(req: Request): string {
   }
   return req.headers.get("x-real-ip") ?? "unknown";
 }
+
+/** فحص حالة النافذة دون استهلاك محاولة (لأقفال الفشل التراكمي) */
+export function peekLimit(
+  bucket: string,
+  key: string,
+  limit: number
+): { blocked: boolean; count: number; retryAfterSec: number } {
+  const now = Date.now();
+  const mapKey = `${bucket}::${key}`;
+  const existing = buckets.get(mapKey);
+  if (!existing || existing.resetAt <= now) {
+    return { blocked: false, count: 0, retryAfterSec: 0 };
+  }
+  const blocked = existing.count >= limit;
+  return {
+    blocked,
+    count: existing.count,
+    retryAfterSec: blocked ? Math.ceil((existing.resetAt - now) / 1000) : 0,
+  };
+}
+
+/** تفريغ نافذة حد معيّنة (عند النجاح — إلغاء عدّاد الفشل) */
+export function resetLimit(bucket: string, key: string): void {
+  buckets.delete(`${bucket}::${key}`);
+}

@@ -10,7 +10,6 @@ import { useState } from "react";
 import {
   BadgeCheck,
   Bell,
-  BookOpen,
   CalendarDays,
   Languages,
   LifeBuoy,
@@ -92,7 +91,7 @@ const LINKS = [
   {
     icon: ShieldCheck,
     title: "الأمان",
-    subtitle: "رمز PIN والبصمة والجلسات",
+    subtitle: "رمز PIN والجلسات النشطة",
     screen: "security" as const,
   },
   {
@@ -112,12 +111,6 @@ const LINKS = [
     title: "مركز المساعدة",
     subtitle: "الأسئلة الشائعة وتذاكر الدعم",
     screen: "help" as const,
-  },
-  {
-    icon: BookOpen,
-    title: "الوثائق الهندسية",
-    subtitle: "وثائق المشروع داخل التطبيق",
-    screen: "docs" as const,
   },
 ];
 
@@ -231,7 +224,7 @@ export function ProfileScreen() {
       </div>
 
       <p className="mt-4 text-center text-[11px] font-medium text-[#A3A09B]">
-        محفظة الجنوب · Alpha تجريبي — بياناتك محفوظة في بيئة تجريبية مغلقة
+        محفظة الجنوب — بياناتك محفوظة ومحمية بتشفير
       </p>
 
       {/* تأكيد تسجيل الخروج */}

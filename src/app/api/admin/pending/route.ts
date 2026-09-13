@@ -21,11 +21,19 @@ export const GET = route(async () => {
   const cashAgentIds = [...new Set(cashOps.map((c) => c.agentId))];
   const agentIds = [...new Set([...remAgentIds, ...cashAgentIds])];
   const [profiles, owners] = await Promise.all([
-    agentIds.length ? db.agentProfile.findMany({ where: { userId: { in: agentIds } } }) : [],
-    agentIds.length ? db.user.findMany({ where: { id: { in: agentIds } }, select: { id: true, fullName: true } }) : [],
+    agentIds.length
+      ? db.agentProfile.findMany({ where: { userId: { in: agentIds } } })
+      : Promise.resolve([] as Awaited<ReturnType<typeof db.agentProfile.findMany>>),
+    agentIds.length
+      ? db.user.findMany({ where: { id: { in: agentIds } }, select: { id: true, fullName: true } })
+      : Promise.resolve([] as { id: string; fullName: string | null }[]),
   ]);
-  const profileByUser = new Map(profiles.map((p) => [p.userId, p]));
-  const nameByUser = new Map(owners.map((o) => [o.id, o.fullName]));
+  const profileByUser = new Map<string, (typeof profiles)[number]>(
+    profiles.map((p) => [p.userId, p] as const)
+  );
+  const nameByUser = new Map<string, string | null>(
+    owners.map((o) => [o.id, o.fullName] as const)
+  );
 
   return ok({
     remittances: remittances.map((r) =>

@@ -25,7 +25,7 @@ const SESSION_MAX_AGE_SEC = 7 * 24 * 60 * 60; // 7 أيام
  *  تنظيف الجلسات المنتهية كسلياً */
 export async function createSession(
   userId: string,
-  deviceLabel = "متصفح الويب — Alpha"
+  deviceLabel = "متصفح الويب"
 ): Promise<string> {
   const token = randomBytes(24).toString("hex"); // 48 hex
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SEC * 1000);

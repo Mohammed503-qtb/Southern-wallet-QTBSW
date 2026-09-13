@@ -1,22 +1,20 @@
 /**
  * محفظة الجنوب — توثيق الحساب KYC (SC-39)
  * ثلاث حالات: (أ) NONE ولم يقدّم → نموذج التقديم (K2: الاسم كما في الهوية،
- * نوع الوثيقة/رقمها، المحافظة، العنوان، المهنة، الدخل الشهري اختياري، وحقلا
- * ملف وهميان بأزرار رفع حقيقية تخزن اسم الملف فقط docName/selfieName)؛
+ * نوع الوثيقة/رقمها، المحافظة، العنوان، المهنة، الدخل الشهري اختياري، ورفع
+ * فعلي لصورة الوثيقة (إلزامي) والصورة الشخصية (اختياري) — JPEG/PNG/WEBP
+ * حتى 5MB لكل ملف مع معاينة مصغّرة وإرسال multipart عبر api.postForm)؛
  * (ب) PENDING → بطاقة انتظار كهرمانية + ملخص ما قُدّم؛
  * (ج) APPROVED/REJECTED → بطاقة خضراء/حمراء + سبب الرفض + إعادة التقديم.
  * مع مقارنة الحدود NONE vs VERIFIED (من me.limits) في جدول صغير دائم.
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
   BadgeCheck,
-  CheckCircle2,
-  Camera,
   Clock,
-  FileImage,
   ShieldQuestion,
   Upload,
   XCircle,
@@ -24,7 +22,7 @@ import {
 import { useAppStore } from "@/lib/app-store";
 import { api, ApiError } from "@/lib/api";
 import type { LimitView } from "@/lib/api-types";
-import { CURRENCIES, CURRENCY_META, IN_SCOPE_GOVERNORATES, formatMoney } from "@/lib/api-types";
+import { CURRENCY_META, IN_SCOPE_GOVERNORATES, formatMoney } from "@/lib/api-types";
 import { ErrorState } from "@/components/app/ui/error-state";
 import { PrimaryActionButton } from "@/components/app/ui/primary-action-button";
 import { ScreenHeader } from "@/components/app/ui/screen-header";
@@ -46,6 +44,54 @@ const ID_TYPE_LABELS: Record<IdType, string> = {
   NATIONAL_ID: "بطاقة الهوية الوطنية",
   PASSPORT: "جواز السفر",
 };
+
+// ===== قيود رفع مستندات KYC (مطابقة للخادم 12-g) =====
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const ACCEPT_ATTR = "image/jpeg,image/png,image/webp";
+
+/** التحقق من ملف صورة مختار — يعيد رسالة خطأ عربية أو null */
+function validateImageFile(file: File): string | null {
+  const typeOk = ACCEPTED_IMAGE_TYPES.includes(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+  if (!typeOk) return "صيغة غير مدعومة — يقبل صور JPEG/PNG/WEBP فقط";
+  if (file.size > MAX_FILE_BYTES) return "حجم الصورة يتجاوز 5MB — اختر صورة أصغر";
+  return null;
+}
+
+/** تنسيق حجم الملف للعرض */
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${bytes}B`;
+}
+
+/** ملف مختار + معاينة object URL — الإنشاء/الإلغاء في معالج الحدث نفسه
+ *  (لا setState تزامني داخل تأثير)، والإلغاء الأخير عند التفكيك فقط */
+interface PickedFile {
+  file: File;
+  url: string;
+}
+
+function usePickedFile() {
+  const [picked, setPicked] = useState<PickedFile | null>(null);
+  const urlRef = useRef<string | null>(null);
+
+  const pick = (file: File | null) => {
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    urlRef.current = file ? URL.createObjectURL(file) : null;
+    setPicked(file && urlRef.current ? { file, url: urlRef.current } : null);
+  };
+
+  // إلغاء آخر object URL عند تفكيك الشاشة — تنظيف خارجي بلا ضبط حالة
+  useEffect(
+    () => () => {
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    },
+    [],
+  );
+
+  return { picked, pick };
+}
 
 /** بطاقة حد لمستوى واحد (NONE/VERIFIED) — مقارنة الحدود */
 function LimitsCard({
@@ -116,8 +162,9 @@ export function KycScreen() {
   const [address, setAddress] = useState("");
   const [occupation, setOccupation] = useState("");
   const [monthlyIncome, setMonthlyIncome] = useState("");
-  const [docName, setDocName] = useState<string | null>(null);
-  const [selfieName, setSelfieName] = useState<string | null>(null);
+  const doc = usePickedFile();
+  const selfie = usePickedFile();
+  const [fileError, setFileError] = useState<{ field: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<{ code: string; message: string } | null>(null);
 
@@ -150,24 +197,41 @@ export function KycScreen() {
   const nameValid = fullName.trim().length >= 3;
   const idNumberValid = idNumber.trim().length >= 4;
   const govValid = governorate !== "";
-  const formValid = nameValid && idNumberValid && govValid;
+  const docValid = doc.picked !== null && fileError === null;
+  const formValid = nameValid && idNumberValid && govValid && docValid;
+
+  /** اختيار ملف مع التحقق الفوري — يرفض غير الصور أو ما يتجاوز 5MB */
+  const pickFile = (field: "doc" | "selfie") => (file: File | null) => {
+    setFileError(null);
+    if (!file) return;
+    const invalid = validateImageFile(file);
+    if (invalid) {
+      setFileError({ field, message: invalid });
+      (field === "doc" ? doc : selfie).pick(null);
+      return;
+    }
+    (field === "doc" ? doc : selfie).pick(file);
+  };
 
   const submit = async () => {
     if (!formValid || submitting) return;
     setSubmitError(null);
     setSubmitting(true);
     try {
-      await api.post("/api/kyc", {
-        fullName: fullName.trim(),
-        idType,
-        idNumber: idNumber.trim(),
-        governorate,
-        address: address.trim() || undefined,
-        occupation: occupation.trim() || undefined,
-        monthlyIncomeMinor: monthlyIncome.trim() ? Number(monthlyIncome.replace(/[^\d]/g, "")) || 0 : undefined,
-        docName: docName ?? undefined,
-        selfieName: selfieName ?? undefined,
-      });
+      // K2 multipart — يرفع الملفات فعلياً (api.postForm يضبط boundary تلقائياً)
+      const form = new FormData();
+      form.set("fullName", fullName.trim());
+      form.set("idType", idType);
+      form.set("idNumber", idNumber.trim());
+      form.set("governorate", governorate);
+      if (address.trim()) form.set("address", address.trim());
+      if (occupation.trim()) form.set("occupation", occupation.trim());
+      if (monthlyIncome.trim()) {
+        form.set("monthlyIncomeMinor", String(Number(monthlyIncome.replace(/[^\d]/g, "")) || 0));
+      }
+      if (doc.picked) form.set("docFile", doc.picked.file);
+      if (selfie.picked) form.set("selfieFile", selfie.picked.file);
+      await api.postForm("/api/kyc", form);
       setForceForm(false);
       await refreshMe();
       toast({
@@ -316,69 +380,90 @@ export function KycScreen() {
                 </div>
               </div>
 
-              {/* حقلا الملف — أزرار رفع حقيقية تخزّن الاسم فقط (Alpha مغلق) */}
+              {/* حقلا الملف — رفع فعلي بصيغ JPEG/PNG/WEBP حتى 5MB مع معاينة */}
               {[
                 {
-                  key: "doc",
+                  key: "doc" as const,
                   label: "بطاقة الهوية",
-                  icon: FileImage,
-                  name: docName,
-                  set: setDocName,
+                  required: true,
+                  picked: doc.picked,
+                  onPick: pickFile("doc"),
                   id: "sw-kyc-doc-file",
                 },
                 {
-                  key: "selfie",
+                  key: "selfie" as const,
                   label: "صورة شخصية",
-                  icon: Camera,
-                  name: selfieName,
-                  set: setSelfieName,
+                  required: false,
+                  picked: selfie.picked,
+                  onPick: pickFile("selfie"),
                   id: "sw-kyc-selfie-file",
                 },
               ].map((f) => (
                 <div key={f.key}>
-                  <FieldLabel htmlFor={f.id}>{f.label}</FieldLabel>
+                  <FieldLabel htmlFor={f.id} hint={f.required ? undefined : "اختياري"}>
+                    {f.label}
+                  </FieldLabel>
                   <input
                     id={f.id}
                     type="file"
-                    accept="image/*"
+                    accept={ACCEPT_ATTR}
                     className="sr-only"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      f.set(file ? file.name : null);
+                      f.onPick(e.target.files?.[0] ?? null);
+                      // السماح بإعادة اختيار نفس الملف بعد رفض التحقق
+                      e.target.value = "";
                     }}
                   />
                   <label
                     htmlFor={f.id}
                     className={cn(
-                      "flex min-h-[52px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-dashed px-4 text-right transition-colors",
-                      f.name
+                      "flex min-h-[52px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-dashed p-2.5 text-right transition-colors",
+                      f.picked
                         ? "border-[#15803D]/40 bg-[#15803D]/[0.05]"
-                        : "border-[#E8E6E1] bg-[#F7F6F2] hover:border-[#C9A227]/50 hover:bg-[#FDFCFA]",
+                        : "border-[#E8E6E1] bg-[#F7F6F2] px-4 hover:border-[#C9A227]/50 hover:bg-[#FDFCFA]",
                     )}
                   >
-                    {f.name ? (
-                      <CheckCircle2 strokeWidth={1.5} className="h-5 w-5 shrink-0 text-[#15803D]" />
+                    {f.picked ? (
+                      <img
+                        src={f.picked.url}
+                        alt={f.label}
+                        className="h-11 w-11 shrink-0 rounded-lg border border-[#E8E6E1] bg-white object-cover"
+                      />
                     ) : (
                       <Upload strokeWidth={1.5} className="h-5 w-5 shrink-0 text-[#A3A09B]" />
                     )}
                     <span className="min-w-0 flex-1">
                       <span
+                        dir="auto"
                         className={cn(
                           "block truncate text-[14px] font-semibold",
-                          f.name ? "text-[#141416]" : "text-[#A3A09B]",
+                          f.picked ? "text-[#141416]" : "text-[#A3A09B]",
                         )}
                       >
-                        {f.name ?? "اضغط لاختيار صورة"}
+                        {f.picked ? f.picked.file.name : `اضغط لاختيار ${f.label}`}
                       </span>
-                      {f.name ? (
+                      {f.picked ? (
                         <span className="block text-[11px] font-medium text-[#15803D]">
-                          تم اختيار الملف — يُرسل اسمه مع الطلب (لا رفع فعلي في Alpha)
+                          {formatFileSize(f.picked.file.size)} — سيُرفع مع الطلب
+                          {!f.required ? " (اختياري)" : ""}
                         </span>
-                      ) : null}
+                      ) : (
+                        <span className="block text-[11px] font-medium text-[#A3A09B]">
+                          JPEG/PNG/WEBP — حتى 5MB
+                        </span>
+                      )}
                     </span>
                   </label>
                 </div>
               ))}
+
+              {fileError ? (
+                <div className="rounded-xl border border-[#B91C1C]/25 bg-[#B91C1C]/[0.05] p-3">
+                  <p className="text-[13px] font-semibold text-[#B91C1C]">
+                    {fileError.field === "doc" ? "بطاقة الهوية" : "الصورة الشخصية"} — {fileError.message}
+                  </p>
+                </div>
+              ) : null}
 
               {submitError ? (
                 <div className="rounded-xl border border-[#B91C1C]/25 bg-[#B91C1C]/[0.05] p-3">
@@ -402,7 +487,9 @@ export function KycScreen() {
                       ? "أدخل رقم وثيقة صحيحاً (4 محارف على الأقل)"
                       : !govValid
                         ? "اختر المحافظة"
-                        : undefined
+                        : !docValid
+                          ? "أرفق صورة بطاقة الهوية (JPEG/PNG حتى 5MB)"
+                          : undefined
                 }
               >
                 إرسال طلب التوثيق
@@ -490,9 +577,9 @@ export function KycScreen() {
       <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-[#E8E6E1] bg-white p-3">
         <ShieldQuestion strokeWidth={1.5} className="mt-0.5 h-5 w-5 shrink-0 text-[#C9A227]" />
         <p className="text-[12px] font-medium leading-5 text-[#5C5A56]">
-          في نسخة Alpha التجريبية لا يُرفع ملف فعلي — يُخزَّن اسم الصورة المختارة مع
-          الطلب فقط، ويراجع فريق الامتثال البيانات النصية. الرفع الفعلي للمستندات
-          مجدول لمرحلة Beta عبر روابط رفع موقّعة.
+          يقبل رفع صور JPEG/PNG/WEBP حتى 5MB لكل ملف. مستنداتك تُحفظ بصلاحيات
+          وصول مقيدة على الخادم ولا يطّلع عليها إلا فريق الامتثال لمراجعة طلبك،
+          وتُحذف نسخ التقديم السابق عند إعادة الإرسال.
         </p>
       </div>
     </div>

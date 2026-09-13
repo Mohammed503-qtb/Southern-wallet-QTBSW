@@ -15,11 +15,13 @@
  * ============================================================
  */
 import { PrismaClient } from "@prisma/client";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { hashPin } from "../src/lib/server/pin";
 import { postEntries, ledgerCheck, type LedgerItem } from "../src/lib/server/ledger";
 import { computeFee, convertMinor, formatMinor } from "../src/lib/server/money";
 import { notify } from "../src/lib/server/notify";
+import { encryptSecret } from "../src/lib/server/crypto-vault";
+import { base32Encode } from "../src/lib/server/totp";
 import type { DbClient } from "../src/lib/server/audit";
 
 const db = new PrismaClient({ log: ["warn", "error"] });
@@ -1053,6 +1055,27 @@ async function main(): Promise<void> {
     cashOps: await db.cashOperation.count(),
     tickets: await db.supportTicket.count(),
   };
+
+  // ============ تفعيل المصادقة (TOTP) لحسابات البيانات التجريبية ============
+  // سر مشتق من APP_KEY لكل هاتف (حتمي) — رمز كل حساب يُطبع بأداة
+  // scripts/totp-code.ts (بيئات التجربة فقط — لا تشغّل الـSeed في الإنتاج العام).
+  const seedUsers = await db.user.findMany({ where: { role: { not: "SYSTEM" } } });
+  for (const u of seedUsers) {
+    const secretBuf = createHmac("sha256", process.env.APP_KEY ?? "dev-only-insecure-fallback-app-key!!")
+      .update(`seed-totp:${u.phone}`)
+      .digest()
+      .slice(0, 20);
+    await db.user.update({
+      where: { id: u.id },
+      data: {
+        totpSecretEnc: encryptSecret(base32Encode(secretBuf)),
+        totpConfirmedAt: new Date(),
+        totpLastStep: 0,
+      },
+    });
+  }
+  console.log(`✔ فُعّلت المصادقة (TOTP) لـ ${seedUsers.length} حساباً تجريبياً`);
+
   console.log("✔ اكتمل الـSeed — التحقق ناجح:");
   console.table(check);
   console.table(counts);

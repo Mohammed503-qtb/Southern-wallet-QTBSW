@@ -8,7 +8,7 @@ import type { CurrencyCode } from "../api-types";
 import { RouteError } from "./envelope";
 import type { DbClient } from "./audit";
 
-export type FeeOpType = "TRANSFER" | "REMITTANCE" | "WITHDRAW" | "FX";
+export type FeeOpType = "TRANSFER" | "REMITTANCE" | "WITHDRAW" | "FX" | "MERCHANT_PAY";
 
 export interface FeeRuleLike {
   pctBps: number;

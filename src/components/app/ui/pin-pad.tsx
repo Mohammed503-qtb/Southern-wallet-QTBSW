@@ -2,12 +2,10 @@
  * محفظة الجنوب — المكون القياسي 8/10: لوحة رمز PIN (PINPad)
  * 6 نقاط ملء (تمتلئ مع الإدخال) + AmountPad بوضع digits +
  * عنوان العملية الحساسة (contextLabel) + عدّاد محاولات وتحذير القفل
- * (PIN-002 من الخادم يمرّ عبر lockSeconds) + زر بصمة إن كانت مفعّلة
- * (محاكاة ناجحة فورية في Alpha عبر onBiometric).
+ * (PIN-002 من الخادم يمرّ عبر lockSeconds).
  */
 "use client";
 
-import { Fingerprint } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AmountPad } from "./amount-pad";
 
@@ -23,8 +21,6 @@ export interface PINPadProps {
   attemptsLeft?: number;
   /** ثواني القفل التصاعدي المتبقية (PIN-002) */
   lockSeconds?: number;
-  /** البصمة إن كانت مفعّلة — الضغط عليها يحاكي نجاحاً فورياً في Alpha */
-  biometric?: { onPress: () => void };
   length?: number;
   disabled?: boolean;
   className?: string;
@@ -38,7 +34,6 @@ export function PINPad({
   error,
   attemptsLeft,
   lockSeconds,
-  biometric,
   length = 6,
   disabled = false,
   className,
@@ -105,18 +100,6 @@ export function PINPad({
         mode="digits"
         disabled={disabled || locked}
       />
-
-      {/* زر البصمة (إن كانت مفعّلة) */}
-      {biometric ? (
-        <button
-          type="button"
-          onClick={biometric.onPress}
-          className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#C9A227]/40 bg-[#C9A227]/[0.06] px-4 text-[14px] font-bold text-[#8A6E14] transition-colors hover:bg-[#C9A227]/[0.12]"
-        >
-          <Fingerprint strokeWidth={1.5} className="h-5 w-5 text-[#C9A227]" />
-          استخدم البصمة بدلاً من الرمز
-        </button>
-      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * محفظة الجنوب — شاشة البداية (SC-01 Splash)
- * 1.8 ثانية: شعار متحرك (fade+scale) على أسود الجنوب + الاسم + شارة
- * "Alpha الداخلي" ثم bootstrap() الذي يقرر الوجهة (تعريف/دخول/رئيسية/لوحة).
+ * 1.8 ثانية: شعار متحرك (fade+scale) على أسود الجنوب + الاسم + الشعار
+ * الفرعي ثم bootstrap() الذي يقرر الوجهة (تعريف/دخول/رئيسية/لوحة).
  * عند فشل الـbootstrap بخطأ غير 401: ErrorState مع إعادة المحاولة.
  */
 "use client";
@@ -35,9 +35,9 @@ export function SplashScreen() {
         <h1 className="mt-7 text-[28px] font-extrabold leading-9 text-white">
           محفظة الجنوب
         </h1>
-        <p className="mt-2 text-[14px] font-semibold text-[#C9A227]">Alpha الداخلي</p>
+        <p className="mt-2 text-[14px] font-semibold text-[#C9A227]">محفظتك المالية الذكية</p>
         <p dir="ltr" className="mt-1 text-[12px] font-medium tracking-wide text-white/40">
-          South Wallet — Internal Alpha
+          South Wallet — Yemen
         </p>
       </div>
 

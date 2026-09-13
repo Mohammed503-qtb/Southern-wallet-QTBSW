@@ -138,6 +138,35 @@ if [[ "$MODE" == "direct" ]] && command -v sqlite3 >/dev/null 2>&1; then
   fi
 fi
 
+# ===== 2ب) نسخ APP_KEY ومرفوعات KYC مع كل نسخة =====
+# APP_KEY (ملف /app/db/.app-key أو APP_KEY_FILE) ووثائق KYC (uploads/kyc)
+# جزء لا يتجزأ من الاستعادة: بدون المفتاح لا تُفك أسرار TOTP، وبلا المرفوعات
+# يفقد الامتثال وثائقه.
+if [[ "$MODE" == "compose" ]]; then
+  KEY_SRC="/app/db/.app-key"
+  if run_in_app test -f "$KEY_SRC"; then
+    compose_cp_out "$KEY_SRC" "${DAILY_DIR}/app-key-${STAMP}"
+    chmod 600 "${DAILY_DIR}/app-key-${STAMP}" 2>/dev/null || true
+    log "نُسخ ملف APP_KEY مع النسخة"
+  fi
+  UP_DST="${DAILY_DIR}/uploads-${STAMP}.tar.gz"
+  if run_in_app test -d /app/uploads; then
+    if run_in_app sh -c 'tar czf /tmp/sw-uploads.tar.gz -C /app uploads 2>/dev/null'; then
+      compose_cp_out "/tmp/sw-uploads.tar.gz" "$UP_DST"
+      run_in_app sh -c 'rm -f /tmp/sw-uploads.tar.gz'
+      log "نُسخ أرشيف وثائق KYC مع النسخة"
+    fi
+  fi
+else
+  if [[ -f "${DB_PATH%/custom.db}/.app-key" ]]; then
+    cp -p "${DB_PATH%/custom.db}/.app-key" "${DAILY_DIR}/app-key-${STAMP}"
+    log "نُسخ ملف APP_KEY مع النسخة"
+  fi
+  if [[ -d ./uploads ]]; then
+    tar czf "${DAILY_DIR}/uploads-${STAMP}.tar.gz" -C . uploads 2>/dev/null && log "نُسخ أرشيف وثائق KYC مع النسخة" || true
+  fi
+fi
+
 # ===== 3) الإقرار بالنسخة (اسم نهائي + بصمة sha256) =====
 mv -f "$TMP_FILE" "$DAILY_FILE"
 if [[ -f "${TMP_FILE}-wal" ]]; then
@@ -181,6 +210,20 @@ prune_keep_n() {
 }
 prune_keep_n "$DAILY_DIR" "$DAILY_KEEP"
 prune_keep_n "$WEEKLY_DIR" "$WEEKLY_KEEP"
+
+# دوران الملفات المرافقة (APP_KEY + أرشيفات المرفوعات) بنفس سياسة الاحتفاظ
+prune_side_files() {
+  local dir="$1" keep="$2"
+  for pattern in 'app-key-*' 'uploads-*.tar.gz'; do
+    find "$dir" -maxdepth 1 -name "$pattern" 2>/dev/null | sort -r | tail -n "+$((keep + 1))" |
+      while IFS= read -r f; do
+        rm -f -- "$f"
+        log "دوران: حذف ${f}"
+      done
+  done
+}
+prune_side_files "$DAILY_DIR" "$DAILY_KEEP"
+prune_side_files "$WEEKLY_DIR" "$WEEKLY_KEEP"
 
 # ===== 6) ملخص ختامي =====
 DAILY_COUNT="$(find "$DAILY_DIR" -maxdepth 1 -name 'sw-db-*.db' 2>/dev/null | wc -l | tr -d ' ')"

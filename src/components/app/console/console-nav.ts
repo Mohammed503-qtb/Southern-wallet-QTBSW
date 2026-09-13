@@ -16,6 +16,7 @@ import {
   ListChecks,
   ReceiptText,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
   Store,
@@ -35,6 +36,7 @@ export type ConsoleSectionKey =
   | "pending"
   | "remit-in"
   | "audit"
+  | "security"
   | "tickets";
 
 /** مفاتيح أقسام بوابة الوكيل */
@@ -102,6 +104,12 @@ const SECTIONS: Record<ConsoleSectionKey, NavSectionDef> = {
     description: "سجل الأفعال الإدارية الحساسة",
     icon: ScrollText,
   },
+  security: {
+    key: "security",
+    label: "الأحداث الأمنية",
+    description: "محاولات الدخول والقفل وإعادة التعيين",
+    icon: ShieldAlert,
+  },
   tickets: {
     key: "tickets",
     label: "التذاكر",
@@ -121,9 +129,10 @@ const ROLE_SECTIONS: Record<"ADMIN" | "COMPLIANCE" | "SUPPORT", ConsoleSectionKe
     "pending",
     "remit-in",
     "audit",
+    "security",
     "tickets",
   ],
-  COMPLIANCE: ["overview", "users", "kyc", "transactions", "remit-in", "audit"],
+  COMPLIANCE: ["overview", "users", "kyc", "transactions", "remit-in", "audit", "security"],
   SUPPORT: ["tickets"],
 };
 

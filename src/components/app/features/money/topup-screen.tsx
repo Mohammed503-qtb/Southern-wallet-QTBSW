@@ -235,7 +235,7 @@ export function TopupScreen() {
                 tone: totalMinor > (yerWallet?.balanceMinor ?? 0) ? ("error" as const) : undefined,
               },
             ]}
-            note="يصل الرصيد للرقم فوراً (محاكاة Beta) ويُخصم الإجمالي من محفظة الريال اليمني."
+            note="يصل الرصيد للرقم فوراً  ويُخصم الإجمالي من محفظة الريال اليمني."
           />
           <PrimaryActionButton onClick={() => setStep("pin")}>تأكيد الشحن</PrimaryActionButton>
           <button

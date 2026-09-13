@@ -37,6 +37,10 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "examples",
+    "skills",
+    "prisma/_inspect.ts",
+    "scripts/gen-icons.ts"
   ]
 }

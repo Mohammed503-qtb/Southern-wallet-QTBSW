@@ -25,10 +25,11 @@ export type ScreenKey =
   | "splash"
   | "onboarding"
   | "login"
-  | "otp"
   | "register"
+  | "totp-verify"
+  | "totp-enroll"
+  | "recovery-codes"
   | "pin-create"
-  | "biometric"
   | "home"
   | "services"
   | "wallet-details"
@@ -64,7 +65,6 @@ export type ScreenKey =
   | "help"
   | "ticket-new"
   | "ticket-chat"
-  | "docs"
   | "console";
 
 /** الشاشات الجذرية لشريط التنقل السفلي (زبون فقط) */
@@ -76,13 +76,32 @@ export const ROOT_SCREENS: readonly ScreenKey[] = [
   "profile",
 ];
 
-export interface PendingOtp {
+/** سياق الدخول الجاري (بعد بدء /api/auth/login) */
+export interface PendingLogin {
   phone: string;
-  mode: "REGISTER" | "LOGIN";
-  devCode?: string | null;
+  /** مفعّل المصادقة؟ يحدد شكل شاشة الرمز (TOTP / رمز تفعيل) */
+  enrolled: boolean;
 }
 
-/** بيانات نموذج التسجيل التي تُرسل مع verify عند إنشاء حساب جديد */
+/** سياق إلحاق المصادقة (يُعرض مرة واحدة: QR + مفتاح يدوي) */
+export interface EnrollmentContext {
+  phone: string;
+  mode: "REGISTER" | "REENROLL";
+  secret: string;
+  otpauthUrl: string;
+  qrDataUrl: string;
+  /** رمز التفعيل (وضع REENROLL فقط — يُرسل مع التأكيد) */
+  token?: string;
+}
+
+/** رموز الاسترداد المعروضة مرة واحدة بعد الإلحاق/التجديد */
+export interface RecoveryCodesState {
+  codes: string[];
+  /** الوجهة بعد الإقرار بالحفظ */
+  next: "pin" | "app";
+}
+
+/** بيانات نموذج التسجيل التي تُرسل مع register */
 export interface RegisterDraft {
   fullName: string;
   governorate: string;
@@ -115,8 +134,12 @@ export interface AppStore {
   toggleBalanceHidden(): void;
 
   // ---- سياق المصادقة ----
-  pendingOtp: PendingOtp | null;
-  setPendingOtp(v: PendingOtp | null): void;
+  pendingLogin: PendingLogin | null;
+  setPendingLogin(v: PendingLogin | null): void;
+  enrollment: EnrollmentContext | null;
+  setEnrollment(v: EnrollmentContext | null): void;
+  recoveryCodesState: RecoveryCodesState | null;
+  setRecoveryCodesState(v: RecoveryCodesState | null): void;
   registerDraft: RegisterDraft | null;
   setRegisterDraft(v: RegisterDraft | null): void;
 }
@@ -185,7 +208,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       // حتى لو فشل الطلب ننظف الحالة محلياً
     }
     clearSessionToken();
-    set({ me: null, pendingOtp: null, registerDraft: null });
+    set({
+      me: null,
+      pendingLogin: null,
+      enrollment: null,
+      recoveryCodesState: null,
+      registerDraft: null,
+    });
     get().resetTo(readOnboarded() ? "login" : "onboarding");
   },
 
@@ -231,8 +260,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   toggleBalanceHidden: () => set((s) => ({ balanceHidden: !s.balanceHidden })),
 
   // ================= سياق المصادقة =================
-  pendingOtp: null,
-  setPendingOtp: (v) => set({ pendingOtp: v }),
+  pendingLogin: null,
+  setPendingLogin: (v) => set({ pendingLogin: v }),
+  enrollment: null,
+  setEnrollment: (v) => set({ enrollment: v }),
+  recoveryCodesState: null,
+  setRecoveryCodesState: (v) => set({ recoveryCodesState: v }),
   registerDraft: null,
   setRegisterDraft: (v) => set({ registerDraft: v }),
 }));

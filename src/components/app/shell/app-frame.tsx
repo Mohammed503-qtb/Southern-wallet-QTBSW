@@ -1,22 +1,40 @@
 /**
  * محفظة الجنوب — إطار سطح المكتب (AppFrame)
  * صف RTL: [يمين] هاتف بإطار أنيق (حواف داكنة 8px + ثقب كاميرا علوية،
- * 390×844 بتمرير داخلي) يعرض التطبيق — [يسار] لوحة هوية المشروع
- * (الشعار + الوصف + شارة Alpha + دخول سريع بحسابات Seed + الوثائق)
- * + تذييل رقيق لاصق أسفل. على الجوال (<lg): التطبيق ملء الشاشة بلا إطار.
+ * 390×844 بتمرير داخلي) يعرض التطبيق — [يسار] لوحة هوية المنتج
+ * (الشعار + الوصف + شارات الأمان + الإصدار) + تذييل رقيق لاصق أسفل.
+ * على الجوال (<lg): التطبيق ملء الشاشة بلا إطار.
  */
 "use client";
 
 import type { ReactNode } from "react";
-import { BookOpen } from "lucide-react";
-import { useAppStore } from "@/lib/app-store";
-import { cn } from "@/lib/utils";
+import { KeyRound, Landmark, ShieldCheck, Smartphone } from "lucide-react";
 import { AppStyles } from "./app-styles";
-import { DemoLoginButtons } from "./demo-login";
+
+const SECURITY_FEATURES = [
+  {
+    icon: KeyRound,
+    title: "مصادقة ثنائية (TOTP)",
+    desc: "رمز دخول يتجدد كل 30 ثانية من تطبيق المصادقة + رموز استرداد للطوارئ",
+  },
+  {
+    icon: ShieldCheck,
+    title: "أسرار مشفّرة",
+    desc: "أسرار المصادقة مشفّرة AES-256-GCM ورموز PIN مُلبّدة — بلا نص صريح",
+  },
+  {
+    icon: Smartphone,
+    title: "تأكيد PIN لكل عملية",
+    desc: "تحويلات وحوالات وسحب تتطلب رمز PIN مع قفل تصاعدي عند الخطأ",
+  },
+  {
+    icon: Landmark,
+    title: "دفاتر مزدوجة",
+    desc: "كل حركة بقيود متوازنة Σ=0 ومحرك تحقق مستمر لسلامة الأرصدة",
+  },
+];
 
 function IdentityPanel() {
-  const navigate = useAppStore((s) => s.navigate);
-
   return (
     <aside className="hidden lg:flex lg:max-h-[844px] lg:w-[430px] lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:rounded-3xl lg:border lg:border-[#E8E6E1] lg:bg-white lg:p-7 gold-scroll">
       {/* الشعار والاسم */}
@@ -40,41 +58,32 @@ function IdentityPanel() {
         نقدي، وحصالة أهداف ذكية — بقيود حدود ورسوم خادمية ودفاتر مزدوجة.
       </p>
 
-      {/* شارة Alpha الذهبية */}
-      <span className="mt-4 inline-flex w-fit items-center gap-2 rounded-full border border-[#C9A227]/35 bg-[#C9A227]/10 px-3.5 py-1.5 text-[12px] font-bold text-[#8A6E14]">
+      {/* شارة الإصدار */}
+      <span className="mt-4 inline-flex w-fit items-center gap-2 rounded-full border border-[#C9A227]/35 bg-[#C9A227]/[0.08] px-3.5 py-1.5 text-[12px] font-bold text-[#8A6E14]">
         <span aria-hidden="true" className="h-2 w-2 rotate-45 rounded-[2px] bg-[#C9A227]" />
-        Alpha الداخلي — أموال تجريبية
+        الإصدار 1.0.0 — جاهز للإنتاج
       </span>
 
-      {/* الدخول السريع */}
-      <h2 className="mt-7 text-[13px] font-bold text-[#141416]">
-        دخول سريع بحسابات Seed
-      </h2>
-      <p className="mb-2.5 mt-0.5 text-[12px] font-medium text-[#A3A09B]">
-        كل زر يسجّل الدخول بالدور المناسب ثم يفتح عالمه (عميل/لوحة)
-      </p>
-      <DemoLoginButtons layout="panel" />
-
-      {/* الوثائق الهندسية */}
-      <button
-        type="button"
-        onClick={() => navigate("docs")}
-        className="mt-5 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#E8E6E1] bg-[#FAF9F6] px-4 text-[14px] font-bold text-[#141416] transition-colors hover:border-[#C9A227]/60 hover:bg-[#F7F6F2]"
-      >
-        <BookOpen strokeWidth={1.5} className="h-4 w-4 text-[#C9A227]" />
-        الوثائق الهندسية
-      </button>
-
-      {/* فقرة الميزات */}
-      <p className="mt-5 text-[12px] font-medium leading-6 text-[#A3A09B]">
-        في هذه الجلسة: تدفق دخول كامل (OTP → PIN → بصمة)، رئيسية بالأرصدة
-        والخدمات وآخر العمليات، كتالوج الخدمات بحالاتها، وتفاصيل المحفظة —
-        مع الخدمات الموسعة (فواتير، شحن، دفع تاجر) تُدخل تباعاً في Beta.
-      </p>
+      {/* ميزات الأمان */}
+      <h2 className="mt-7 text-[13px] font-bold text-[#141416]">حماية حسابك</h2>
+      <div className="mt-2.5 space-y-2.5">
+        {SECURITY_FEATURES.map((f) => (
+          <div
+            key={f.title}
+            className="flex items-start gap-3 rounded-xl border border-[#E8E6E1] bg-[#FAF9F6] p-3"
+          >
+            <f.icon strokeWidth={1.5} className="mt-0.5 h-5 w-5 shrink-0 text-[#C9A227]" />
+            <div>
+              <p className="text-[13px] font-bold text-[#141416]">{f.title}</p>
+              <p className="mt-0.5 text-[12px] font-medium leading-5 text-[#5C5A56]">{f.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* تذييل رقيق لاصق أسفل */}
       <footer className="mt-auto pt-6 text-[12px] font-medium text-[#A3A09B]">
-        محفظة الجنوب © Alpha الداخلي — جميع الأرصدة والعمليات تجريبية
+        محفظة الجنوب © 2025 — مدفوعات رقمية بمعايير مصرفية
       </footer>
     </aside>
   );

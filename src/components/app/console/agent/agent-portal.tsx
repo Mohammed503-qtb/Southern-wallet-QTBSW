@@ -86,7 +86,7 @@ export function AgentPortal() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-[15px] font-extrabold text-[#F3E9CF]">محفظة الجنوب</p>
-              <p className="text-[11.5px] font-semibold text-[#C9A227]">بوابة الوكيل · Alpha</p>
+              <p className="text-[11.5px] font-semibold text-[#C9A227]">بوابة الوكيل</p>
             </div>
           </div>
 

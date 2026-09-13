@@ -36,6 +36,8 @@ services:
     volumes:
       # قاعدة SQLite داخل وحدة تخزين مسماة — يُنشئ المخطط تلقائياً عند أول تشغيل
       - app-db:/app/db
+      # وثائق KYC المرفوعة (PII المستخدمين) — وحدة تخزين منفصلة قابلة للنسخ
+      - uploads-data:/app/uploads
     restart: unless-stopped
     # docker-init (tini) كـ PID 1 لإعادة توجيه الإشارات وإدارة العمليات اليتيمة
     init: true
@@ -74,6 +76,7 @@ services:
 
 volumes:
   app-db: {}
+  uploads-data: {}
   caddy_data: {}
   caddy_config: {}
 

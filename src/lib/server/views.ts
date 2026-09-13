@@ -47,6 +47,8 @@ import type {
   ServiceStateView,
   SessionView,
   TicketMessageView,
+  AdminAgentRow,
+  AdminUserRow,
   TicketView,
   TxStatus,
   TxType,

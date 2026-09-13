@@ -257,7 +257,7 @@ export function TransactionDetailsScreen() {
           shareText={`إيصال ${TX_TYPE_LABELS[tx.type]} — المرجع ${tx.ref} — المبلغ ${formatMoney(
             tx.amountMinor,
             tx.currency,
-          )} — محفظة الجنوب (Alpha تجريبي)`}
+          )} — محفظة الجنوب`}
           onReportProblem={() =>
             navigate("ticket-new", {
               ref: tx.ref,
