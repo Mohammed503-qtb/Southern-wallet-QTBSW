@@ -18,6 +18,8 @@ export const PUT = route<Ctx>(async (req, ctx) => {
   const body = await readJsonBody(req);
   const state = reqStr(body, "state");
   const note = optStr(body, "note");
+  // المهمة 14: حفظ سبب التعديل الإداري في سجل التدقيق (كان يُرسل ويُهمَل)
+  const reason = optStr(body, "reason");
 
   if (!(STATES as string[]).includes(state)) {
     throw new RouteError("SYS-001", 400, { field: "state", reason: "حالة غير صالحة" });
@@ -35,7 +37,7 @@ export const PUT = route<Ctx>(async (req, ctx) => {
       "SERVICE_UPDATE",
       "SERVICE_STATE",
       id,
-      null,
+      reason,
       { key: existing.key, old: { state: existing.state, note: existing.note }, new: { state, note } }
     );
     return row;

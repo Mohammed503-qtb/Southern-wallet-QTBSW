@@ -2,7 +2,7 @@
  * M10 — PUT /api/admin/fees/:id { pctBps, fixedMinor, minFeeMinor, maxFeeMinor? }
  * تحرير الرسوم + Audit بالقيم القديمة/الجديدة — ADMIN.
  */
-import { ok, route, readJsonBody, reqInt, optInt, RouteError } from "@/lib/server/envelope";
+import { ok, route, readJsonBody, reqInt, optInt, optStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
 import { writeAudit } from "@/lib/server/audit";
 import { toAdminFeeRow } from "@/lib/server/views";
@@ -18,6 +18,8 @@ export const PUT = route<Ctx>(async (req, ctx) => {
   const fixedMinor = reqInt(body, "fixedMinor");
   const minFeeMinor = reqInt(body, "minFeeMinor");
   const maxFeeMinor = optInt(body, "maxFeeMinor");
+  // المهمة 14: حفظ سبب التعديل الإداري في سجل التدقيق (كان يُرسل ويُهمَل)
+  const reason = optStr(body, "reason");
 
   if (pctBps < 0 || pctBps > 10_000 || fixedMinor < 0 || minFeeMinor < 0) {
     throw new RouteError("SYS-001", 400, { reason: "قيم رسوم غير صالحة" });
@@ -41,7 +43,7 @@ export const PUT = route<Ctx>(async (req, ctx) => {
       "FEE_UPDATE",
       "FEE_RULE",
       id,
-      null,
+      reason,
       {
         opType: existing.opType,
         currency: existing.currency,

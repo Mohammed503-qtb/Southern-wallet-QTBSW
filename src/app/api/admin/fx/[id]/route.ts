@@ -2,7 +2,7 @@
  * M11 — PUT /api/admin/fx/:id { rate } — ADMIN + Audit
  * rate: السعر الحقيقي (يخزَّن ×1e6 مقيساً).
  */
-import { ok, route, readJsonBody, RouteError } from "@/lib/server/envelope";
+import { ok, route, readJsonBody, optStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
 import { writeAudit } from "@/lib/server/audit";
 import { toAdminFxRow } from "@/lib/server/views";
@@ -23,6 +23,8 @@ export const PUT = route<Ctx>(async (req, ctx) => {
   if (storedRate <= 0 || !Number.isSafeInteger(storedRate)) {
     throw new RouteError("SYS-001", 400, { field: "rate", reason: "سعر خارج النطاق" });
   }
+  // المهمة 14: حفظ سبب التعديل الإداري في سجل التدقيق (كان يُرسل ويُهمَل)
+  const reason = optStr(body, "reason");
 
   const existing = await db.fxRate.findUnique({ where: { id } });
   if (!existing) {
@@ -37,7 +39,7 @@ export const PUT = route<Ctx>(async (req, ctx) => {
       "FX_UPDATE",
       "FX_RATE",
       id,
-      null,
+      reason,
       {
         pair: `${existing.fromCurrency}/${existing.toCurrency}`,
         oldRate: existing.rate / 1_000_000,

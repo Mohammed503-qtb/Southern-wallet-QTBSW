@@ -2,7 +2,7 @@
  * M9 — PUT /api/admin/limits/:id { dailyTxnCount, dailyAmountMinor, perTxnAmountMinor }
  * تحرير الحدود اليومية + Audit بالقيم القديمة/الجديدة — ADMIN.
  */
-import { ok, route, readJsonBody, reqInt, RouteError } from "@/lib/server/envelope";
+import { ok, route, readJsonBody, reqInt, optStr, RouteError } from "@/lib/server/envelope";
 import { requireUser } from "@/lib/server/auth";
 import { writeAudit } from "@/lib/server/audit";
 import { toAdminLimitRow } from "@/lib/server/views";
@@ -17,6 +17,8 @@ export const PUT = route<Ctx>(async (req, ctx) => {
   const dailyTxnCount = reqInt(body, "dailyTxnCount");
   const dailyAmountMinor = reqInt(body, "dailyAmountMinor");
   const perTxnAmountMinor = reqInt(body, "perTxnAmountMinor");
+  // المهمة 14: حفظ سبب التعديل الإداري في سجل التدقيق (كان يُرسل ويُهمَل)
+  const reason = optStr(body, "reason");
 
   if (dailyTxnCount < 0 || dailyAmountMinor < 0 || perTxnAmountMinor < 0) {
     throw new RouteError("SYS-001", 400, { reason: "القيم يجب أن تكون غير سالبة" });
@@ -37,7 +39,7 @@ export const PUT = route<Ctx>(async (req, ctx) => {
       "LIMIT_UPDATE",
       "LIMIT_RULE",
       id,
-      null,
+      reason,
       {
         kycLevel: existing.kycLevel,
         currency: existing.currency,

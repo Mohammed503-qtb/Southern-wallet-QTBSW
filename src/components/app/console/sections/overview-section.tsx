@@ -165,6 +165,37 @@ export function OverviewSection({ role }: { role: UserRole }) {
               </ConsoleButton>
             ) : null}
           </div>
+          {/* المهمة 14 (M14): نتيجة مطابقة الأرصدة المخزنة مع سلسلة القيود */}
+          {check ? (
+            <div className="mt-3 rounded-lg border border-[#E8E6E1] bg-[#FAF9F6] px-3 py-2">
+              <p className="flex items-center gap-2 text-[12px] font-bold leading-5">
+                {check.balancesReconciled ? (
+                  <>
+                    <CheckCircle2 strokeWidth={1.75} className="h-4 w-4 shrink-0 text-[#15803D]" />
+                    <span className="text-[#15803D]">مطابقة الأرصدة — كل محفظة تساوي مجموع قيودها</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle strokeWidth={1.75} className="h-4 w-4 shrink-0 text-[#B91C1C]" />
+                    <span className="text-[#B91C1C]">خلل مطابقة أرصدة ({check.balanceViolations.length} مخالفة)</span>
+                  </>
+                )}
+              </p>
+              <p className="mt-1 text-[11px] font-semibold tabular-nums text-[#5C5A56]">
+                محافظ مطابقة: {check.walletsChecked.toLocaleString("en-US")} · افتتاحية بلا قيود:{" "}
+                {check.walletsWithoutEntries.toLocaleString("en-US")}
+              </p>
+              {!check.balancesReconciled ? (
+                <ul className="mt-1.5 space-y-1">
+                  {check.balanceViolations.slice(0, 4).map((v) => (
+                    <li key={v} dir="auto" className="truncate text-[11px] font-medium text-[#B91C1C]">
+                      {v}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </ConsoleCard>
 
         {/* حجم 24 ساعة لكل عملة */}

@@ -56,12 +56,16 @@ export function rateLimit(
   };
 }
 
-/** عنوان العميل من وراء البروكسي (Caddy يضبط X-Forwarded-For) */
+/** عنوان العميل من وراء البروكسي (Caddy يضبط X-Forwarded-For)
+ *  المهمة 14: نأخذ آخر قفزة في السلسلة — Caddy يضيف IP الحقيقي في الموضع
+ *  الأخير بينما الأولى تبقى قابلة للتزوير من العميل (كشف ثغرة تجاوز حدود
+ *  المعدل وADMIN_IP_ALLOWLIST بتزوير IP مسموح) */
 export function clientIp(req: Request): string {
   const xf = req.headers.get("x-forwarded-for");
   if (xf) {
-    const first = xf.split(",")[0]?.trim();
-    if (first) return first;
+    const hops = xf.split(",").map((s) => s.trim()).filter(Boolean);
+    const last = hops[hops.length - 1];
+    if (last) return last;
   }
   return req.headers.get("x-real-ip") ?? "unknown";
 }

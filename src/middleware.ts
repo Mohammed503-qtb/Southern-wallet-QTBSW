@@ -12,8 +12,10 @@ import type { NextRequest } from "next/server";
 function clientIp(req: NextRequest): string {
   const xf = req.headers.get("x-forwarded-for");
   if (xf) {
-    const first = xf.split(",")[0]?.trim();
-    if (first) return first;
+    // المهمة 14: آخر قفزة — يضيفها Caddy (موثوق)؛ الأولى قابلة للتزوير من العميل
+    const hops = xf.split(",").map((s) => s.trim()).filter(Boolean);
+    const last = hops[hops.length - 1];
+    if (last) return last;
   }
   return req.headers.get("x-real-ip") ?? "";
 }
