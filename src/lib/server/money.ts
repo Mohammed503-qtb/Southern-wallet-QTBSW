@@ -63,8 +63,19 @@ export async function getFeeRule(tx: DbClient, opType: FeeOpType, currency: stri
 
 // ============ الحدود اليومية ============
 
-/** أنواع العمليات الصادرة التي تستهلك الحدود اليومية (حركات مالية للغير/خارج المحفظة) */
-const LIMIT_COUNTED_TYPES = ["TRANSFER_OUT", "REMITTANCE", "CASH_OUT", "FX_EXCHANGE"];
+/** أنواع العمليات الصادرة التي تستهلك الحدود اليومية (حركات مالية للغير/خارج المحفظة)
+ *  المهمة 14: أُضيفت خدمات الدفع (TOPUP/BILL_PAY/CARD_PURCHASE/MERCHANT_PAY_OUT)
+ *  — كانت تستدعي الفحص دون أن تتراكم في العد/المجموع فكان الحد اليومي يتجاوز صامتاً */
+const LIMIT_COUNTED_TYPES = [
+  "TRANSFER_OUT",
+  "REMITTANCE",
+  "CASH_OUT",
+  "FX_EXCHANGE",
+  "TOPUP",
+  "BILL_PAY",
+  "CARD_PURCHASE",
+  "MERCHANT_PAY_OUT",
+];
 
 /** بداية اليوم بتوقيت عدن (UTC+3) */
 export function dayStartAden(): Date {

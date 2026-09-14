@@ -26,6 +26,7 @@
  * ملاحظة: بلا استيراد من "next" — يعمل من المسارات ومن prisma/seed.ts
  */
 import type { Wallet } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { RouteError } from "./envelope";
 import type { DbClient } from "./audit";
 
@@ -138,11 +139,30 @@ export async function postEntries(
 
 // ============ وصول المحافظ ============
 
+/** إنشاء محفظة محمي ضد سباق التزامن: قيد فريد (userId,kind,currency,jarId)
+ *  يضمن ألا تتكرر المحفظة أبداً — عند الاصطدام نعيد القراءة ونعيد الموجودة */
+async function createWalletRaceSafe(
+  tx: DbClient,
+  data: { userId: string; kind: string; currency: string; jarId: string; balanceMinor: number }
+): Promise<Wallet> {
+  try {
+    return await tx.wallet.create({ data });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const raced = await tx.wallet.findFirst({
+        where: { userId: data.userId, kind: data.kind, currency: data.currency, jarId: data.jarId },
+      });
+      if (raced) return raced;
+    }
+    throw err;
+  }
+}
+
 /** محفظة MAIN للمستخدم بالعملة (تُنشأ عند اللزوم) */
 export async function getOrCreateMainWallet(tx: DbClient, userId: string, currency: string): Promise<Wallet> {
-  const existing = await tx.wallet.findFirst({ where: { userId, kind: "MAIN", currency } });
+  const existing = await tx.wallet.findFirst({ where: { userId, kind: "MAIN", currency, jarId: "" } });
   if (existing) return existing;
-  return tx.wallet.create({ data: { userId, kind: "MAIN", currency, balanceMinor: 0 } });
+  return createWalletRaceSafe(tx, { userId, kind: "MAIN", currency, jarId: "", balanceMinor: 0 });
 }
 
 /** محفظة نظام (FEE/SUSPENSE/FX) — موجودة من الـ Seed وإلا خطأ تهيئة */
@@ -165,11 +185,15 @@ export async function getSystemWallet(
 /** محفظة عوم الوكيل (AGENT_FLOAT:YER) — تُنشأ عند اللزوم */
 export async function getOrCreateAgentFloatWallet(tx: DbClient, agentUserId: string): Promise<Wallet> {
   const existing = await tx.wallet.findFirst({
-    where: { userId: agentUserId, kind: "AGENT_FLOAT", currency: "YER" },
+    where: { userId: agentUserId, kind: "AGENT_FLOAT", currency: "YER", jarId: "" },
   });
   if (existing) return existing;
-  return tx.wallet.create({
-    data: { userId: agentUserId, kind: "AGENT_FLOAT", currency: "YER", balanceMinor: 0 },
+  return createWalletRaceSafe(tx, {
+    userId: agentUserId,
+    kind: "AGENT_FLOAT",
+    currency: "YER",
+    jarId: "",
+    balanceMinor: 0,
   });
 }
 
@@ -177,23 +201,57 @@ export async function getOrCreateAgentFloatWallet(tx: DbClient, agentUserId: str
 export async function getOrCreateSavingsWallet(tx: DbClient, userId: string, jarId: string, currency: string): Promise<Wallet> {
   const existing = await tx.wallet.findFirst({ where: { userId, kind: "SAVINGS", jarId, currency } });
   if (existing) return existing;
-  return tx.wallet.create({ data: { userId, kind: "SAVINGS", jarId, currency, balanceMinor: 0 } });
+  return createWalletRaceSafe(tx, { userId, kind: "SAVINGS", currency, jarId, balanceMinor: 0 });
 }
 
-// ============ فحص التوازن (M1/M16) ============
+// ============ فحص التوازن (M1/M16) والمطابقة (M14) ============
 
 export interface LedgerCheckResult {
   ledgerBalanced: boolean;
   ledgerViolations: string[];
   totalEntries: number;
   groupsChecked: number;
+  /** مطابقة الأرصدة المخزنة مع سلسلة القيود المحاسبية لكل محفظة (M14) */
+  balancesReconciled: boolean;
+  balanceViolations: string[];
+  walletsChecked: number;
+  /** محافظ لها رصيد بلا أي قيود (رصيد افتتاحي من Seed — غير قابلة للمطابقة) */
+  walletsWithoutEntries: number;
 }
 
-/** فحص توازن الدفاتر: لكل (transactionRef, currency) يجب Σ الموقعة = 0 */
+/** أثر القيد على رصيد محفظته (معكوس لعوم الوكيل — راجع رأس الملف) */
+function balanceDelta(kind: string, direction: string, amountMinor: number): number {
+  const plain = direction === "DEBIT" ? -amountMinor : amountMinor;
+  return kind === "AGENT_FLOAT" ? -plain : plain;
+}
+
+/**
+ * فحص توازن الدفاتر: لكل (transactionRef, currency) يجب Σ الموقعة = 0
+ * + مطابقة أرصدة المحافظ: لكل محفظة، سلسلة القيود (balanceAfter) يجب أن
+ * تتسلسل من الرصيد الافتتاحي حتى الرصيد المخزن الحالي بالضبط — أي تلاعب
+ * أو تلف في Wallet.balanceMinor أو في أي قيد يُكشف فوراً (M14).
+ */
 export async function ledgerCheck(client: DbClient): Promise<LedgerCheckResult> {
-  const entries = await client.ledgerEntry.findMany({
-    select: { transactionRef: true, currency: true, direction: true, amountMinor: true },
-  });
+  const [entries, wallets] = await Promise.all([
+    client.ledgerEntry.findMany({
+      select: {
+        transactionRef: true,
+        currency: true,
+        direction: true,
+        amountMinor: true,
+        walletId: true,
+        balanceAfterMinor: true,
+        createdAt: true,
+        id: true,
+      },
+    }),
+    client.wallet.findMany({
+      select: { id: true, kind: true, currency: true, balanceMinor: true },
+    }),
+  ]);
+  const walletById = new Map(wallets.map((w) => [w.id, w]));
+
+  // 1) توازن Σ=0 لكل (عملية، عملة)
   const sums = new Map<string, number>();
   for (const e of entries) {
     const key = `${e.transactionRef}|${e.currency}`;
@@ -206,10 +264,71 @@ export async function ledgerCheck(client: DbClient): Promise<LedgerCheckResult> 
       violations.push(`${key.replace("|", " ")}: Σ=${sum}`);
     }
   }
+
+  // 2) مطابقة سلسلة الأرصدة لكل محفظة (ترتيب زمني، id فاصل للتعادل)
+  // ملاحظة: العمليات ذات الطورين (حوالة: إنشاء ثم دفع وكيل؛ نقدي: طلب ثم إتمام)
+  // تُقيّد أطوارها تحت مرجع واحد فيمكن ظهور أكثر من قيد للمحفظة نفسها في المجموعة —
+  // هذا تصميم قائم ومقصود (Σ=0 عبر المجموعة كلها) والسلسلة الزمنية تتحقق من سلامته.
+  const chains = new Map<string, typeof entries>();
+  for (const e of entries) {
+    const list = chains.get(e.walletId) ?? [];
+    list.push(e);
+    chains.set(e.walletId, list);
+  }
+  const balanceViolations: string[] = [];
+  let walletsChecked = 0;
+  for (const [walletId, list] of chains) {
+    const wallet = walletById.get(walletId);
+    if (!wallet) {
+      balanceViolations.push(`wallet ${walletId}: غير موجودة (قيد يتيم)`);
+      continue;
+    }
+    list.sort((a, b) =>
+      a.createdAt.getTime() !== b.createdAt.getTime()
+        ? a.createdAt.getTime() - b.createdAt.getTime()
+        : a.id < b.id
+          ? -1
+          : a.id > b.id
+            ? 1
+            : 0
+    );
+    let expected: number | null = null;
+    let broken = false;
+    for (const e of list) {
+      const delta = balanceDelta(wallet.kind, e.direction, e.amountMinor);
+      if (expected === null) {
+        // القيد الأول يؤسس السلسلة (رصيده بعد الحركة = افتتاحي + أثره) — لا فحص عليه
+        expected = e.balanceAfterMinor;
+        continue;
+      }
+      expected += delta;
+      if (expected !== e.balanceAfterMinor) {
+        balanceViolations.push(
+          `wallet ${wallet.id} ${e.currency}: انقطاع السلسلة عند ${e.transactionRef} (متوقع ${expected} ≠ مخزن ${e.balanceAfterMinor})`
+        );
+        broken = true;
+        break;
+      }
+    }
+    if (!broken && expected !== null) {
+      walletsChecked++;
+      if (expected !== wallet.balanceMinor) {
+        balanceViolations.push(
+          `wallet ${wallet.id} ${wallet.currency}: الرصيد المخزن ${wallet.balanceMinor} ≠ المحسوب من القيود ${expected}`
+        );
+      }
+    }
+  }
+
+  const walletsWithoutEntries = wallets.filter((w) => !chains.has(w.id)).length;
   return {
     ledgerBalanced: violations.length === 0,
     ledgerViolations: violations.slice(0, 50),
     totalEntries: entries.length,
     groupsChecked: sums.size,
+    balancesReconciled: balanceViolations.length === 0,
+    balanceViolations: balanceViolations.slice(0, 50),
+    walletsChecked,
+    walletsWithoutEntries,
   };
 }

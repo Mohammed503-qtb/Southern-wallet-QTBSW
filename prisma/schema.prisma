@@ -165,8 +165,9 @@ model Wallet {
   currency     String
   // MAIN | SAVINGS | FEE | SUSPENSE | FX | AGENT_FLOAT
   kind         String   @default("MAIN")
-  // إن كان kind = SAVINGS → معرف الحصالة
-  jarId        String?
+  // إن كان kind = SAVINGS → معرف الحصالة؛ فارغ ("") لغيرها — يسمح بقيد
+  // فريد موحد لكل (مستخدم، نوع، عملة) يمنع تكرار المحفظة عند أول لمسة متزامنة
+  jarId        String   @default("")
   balanceMinor Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -174,7 +175,7 @@ model Wallet {
   user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   ledger LedgerEntry[]
 
-  @@index([userId, kind])
+  @@unique([userId, kind, currency, jarId])
 }
 
 model Transaction {

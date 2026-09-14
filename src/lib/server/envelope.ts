@@ -4,6 +4,7 @@
  * بلا أي استيراد من next — قابل للاستعمال من المسارات ومن seed على السواء.
  */
 import { ERROR_MESSAGES } from "../api-types";
+import { Prisma } from "@prisma/client";
 
 /** خطأ مسار قابل للرمي من أي عمق — يُترجم إلى غلاف موحد */
 export class RouteError extends Error {
@@ -46,10 +47,32 @@ export function fail(
   return jsonBody({ ok: false, error }, status);
 }
 
+/**
+ * خطأ P2002 (تعارض قيد فريد) على فهرس Idempotency: طلبان متزامنان بنفس
+ * المفتاح — الأول فاز والثاني اصطدم. نحوّله إلى TXN-004 (409) يطلب إعادة
+ * المحاولة بدل SYS-001 (500): إعادة المحاولة تمر بالفحص المسبق فتعيد
+ * نتيجة العملية الأصلية (replayed) بدل إنشاء معاملة ثانية (المهمة 14).
+ */
+function isIdempotencyUniqueConflict(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== "P2002") {
+    return false;
+  }
+  const target = err.meta?.target;
+  if (Array.isArray(target)) {
+    return target.some(
+      (t) => typeof t === "string" && t.toLowerCase().includes("idempotency")
+    );
+  }
+  return typeof target === "string" && target.toLowerCase().includes("idempotency");
+}
+
 /** ترجمة أي خطأ مرمي إلى استجابة — لا يكشف stack trace أبداً */
 export function errorResponse(err: unknown): Response {
   if (err instanceof RouteError) {
     return fail(err.code, err.status, err.details);
+  }
+  if (isIdempotencyUniqueConflict(err)) {
+    return fail("TXN-004", 409, { retryAfterSec: 1, hint: "أعد إرسال الطلب نفسه للحصول على نتيجة العملية الأصلية" });
   }
   console.error("[api] خطأ غير متوقع:", err);
   return fail("SYS-001", 500);

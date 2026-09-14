@@ -158,6 +158,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
   "TXN-001": "الرصيد غير كافٍ لإتمام العملية",
   "TXN-002": "تجاوزت الحدود اليومية أو الحد الأقصى للعملية الواحدة",
   "TXN-003": "تعارض Idempotency — المفتاح مستعمل بحمولة مختلفة",
+  // المهمة 14: طلبان متزامنان بنفس المفتاح — الأول قيد التنفيذ، الثاني يُطلب منه
+  // إعادة المحاولة ليحصل على نتيجة العملية الأصلية (replay) بدل خطأ عام
+  "TXN-004": "المعاملة نفسها قيد التنفيذ — أعد المحاولة للحصول على النتيجة",
   "CWD-001": "رمز التحقق غير صحيح",
   "CWD-002": "انتهت صلاحية الطلب",
   "CWD-003": "عوم الوكيل غير كافٍ لإتمام العملية",
@@ -651,6 +654,11 @@ export interface LedgerCheckView {
   ledgerViolations: string[];
   totalEntries: number;
   groupsChecked: number;
+  /** المهمة 14 (M14): مطابقة الأرصدة المخزنة مع سلسلة القيود */
+  balancesReconciled: boolean;
+  balanceViolations: string[];
+  walletsChecked: number;
+  walletsWithoutEntries: number;
 }
 
 export interface CommissionListView {
