@@ -81,7 +81,7 @@ export function PinCreateScreen() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col px-4 pb-8">
+    <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-8">
       <ScreenHeader
         title="إنشاء رمز PIN"
         subtitle="رمز سري من 6 أرقام لكل العمليات الحساسة"

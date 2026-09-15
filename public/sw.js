@@ -12,7 +12,7 @@
  *   رسالة SKIP_WAITING من واجهة التطبيق (sw-register.tsx).
  * ============================================================ */
 
-const VERSION = "sw-beta-1.0.1";
+const VERSION = "sw-beta-1.0.2";
 const STATIC_CACHE = `sw-static-${VERSION}`;
 const RUNTIME_CACHE = `sw-runtime-${VERSION}`;
 const OFFLINE_URL = "/offline.html";

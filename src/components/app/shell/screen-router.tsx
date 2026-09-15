@@ -205,7 +205,10 @@ export function ScreenRouter() {
 
   return (
     <ScreenErrorBoundary>
-      <div key={`${screen}:${JSON.stringify(params)}:${userId}`} className="sw-fade-in min-h-full">
+      {/* عمود flex بارتفاع أدنى كامل: يسمح لشاشة البداية (flex-1)
+          بمدّ خلفيتها لكامل منطقة العرض — لا مساحة بيضاء تحتها،
+          ولا تأثير على الشاشات الطويلة (تكبر طبيعياً مع المحتوى) */}
+      <div key={`${screen}:${JSON.stringify(params)}:${userId}`} className="sw-fade-in flex min-h-full flex-col">
         {content}
       </div>
     </ScreenErrorBoundary>

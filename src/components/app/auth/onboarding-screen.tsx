@@ -58,7 +58,7 @@ export function OnboardingScreen() {
   };
 
   return (
-    <div className="flex min-h-full w-full flex-col bg-[#FAF9F6]">
+    <div className="flex w-full flex-1 flex-col bg-[#FAF9F6]">
       {/* ترويسة: شعار مصغر + تخطي */}
       <header className="flex items-center justify-between px-4 pt-3">
         <div className="flex items-center gap-2.5">

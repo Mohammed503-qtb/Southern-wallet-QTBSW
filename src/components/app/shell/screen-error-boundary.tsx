@@ -14,18 +14,17 @@ interface Props {
 
 interface State {
   error: Error | null;
-  resetKey: number;
 }
 
 export class ScreenErrorBoundary extends Component<Props, State> {
-  state: State = { error: null, resetKey: 0 };
+  state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
   }
 
   reset = () => {
-    this.setState((s) => ({ error: null, resetKey: s.resetKey + 1 }));
+    this.setState({ error: null });
   };
 
   render() {
@@ -40,6 +39,9 @@ export class ScreenErrorBoundary extends Component<Props, State> {
         </div>
       );
     }
-    return <div key={this.state.resetKey}>{this.props.children}</div>;
+    // بلا DOM وسيط: يحافظ على سلسلة الارتفاع (main ← wrapper ← الشاشة)
+    // حتى تمتد شاشة البداية لكامل منطقة العرض — وعند زوال الخطأ
+    // تُعاد الشاشة بتركيب جديد (أُزيلت أثناء العرض الخطأ ثم عادت).
+    return this.props.children;
   }
 }

@@ -58,7 +58,7 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col px-4 pb-8">
+    <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-8">
       {/* ترويسة الشاشة */}
       <div className="flex items-center gap-3 pb-2 pt-8">
         <img src="/logo.svg" alt="" className="h-12 w-12" />

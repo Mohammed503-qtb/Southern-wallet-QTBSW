@@ -4,8 +4,12 @@
  * افتتاحية احترافية بجسيمات Canvas:
  *   1) جسيمات ذهبية تتجمع كنص «QTBM» (علامة المشروع) مع وميض حي
  *   2) التفكك: الجسيمات تتطاير للخارج بسرعات ومسارات عشوائية
- *   3) التشكّل: الجسيمات تنساب وتتقارب نحو نقاط الشعار الرسمي الشفاف
+ *   3) التشكّل: الجسيمات تنساب وتتقارب نحو نقاط الشعار الرسمي
+ *      المتفق عليه (الشعار الهندسي: مثلث، أعمدة، معينات، حد 45°)
  *   4) crossfade إلى الشعار الحاد (SVG) + العنوان ثم bootstrap()
+ *
+ * الشعار الرسمي الشفاف على كامل الشاشة: الخلفية السوداء تملأ
+ * منطقة العرض بالكامل (flex-1 عبر سلسلة flex في ScreenRouter).
  *
  * إمكانية الوصول: prefers-reduced-motion → تخطي الحركة كلياً
  * (شعار ثابت فوراً) — لا حركة إجبارية على من يطلب تقليلها.
@@ -18,13 +22,26 @@ import { useAppStore } from "@/lib/app-store";
 import { ErrorState } from "@/components/app/ui/error-state";
 import { LogoLoader } from "@/components/app/ui/logo-loader";
 
-/** علامة الجنوب الثلاثية (نفس هندسة logo.svg الرسمي) — نسخة معايرة للمعاينة بالجسيمات */
-const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-<g transform="translate(40 40) scale(14.4)">
-<path fill="#C9A227" d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"/>
-<polygon fill="#C9A227" points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"/>
-<path fill="#C9A227" d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"/>
-</g></svg>`;
+/**
+ * الشعار الرسمي المتفق عليه — نسخة معاينة للجسيمات
+ * (نفس هندسة public/logo.svg: 104×100 مقاسة من صورة المالك،
+ * مركّزة في مربع 512 بشغل 85% — تعبئة ذهبية صلبة للمعاينة)
+ */
+const MARK_PATHS = [
+  "M52 0 L66.5 14.3 L37 14.3 Z", // المثلث العلوي ▲
+  "M15.1 14.3 h73.6 v0.9 h-73.6 Z", // الخيط الرابط
+  "M15.1 15.2 h21.2 v20.5 h-21.2 Z", // العمود الأيسر
+  "M67.2 15.2 h21.5 v20.5 h-21.5 Z", // العمود الأيمن
+  "M37 15.2 L66.5 15.2 L51.8 29.4 Z", // المثلث المقلوب ▼
+  "M14.8 35.7 L29.4 50 L14.8 64.3 L0.2 50 Z", // المعين الأيسر ◆
+  "M88.9 35.7 L103.8 50 L88.9 64.3 L74.4 50 Z", // المعين الأيمن ◆
+  "M59.1 43.2 L59.1 64.3 L37.2 64.3 Z", // المثلث القائم المركزي
+  "M15.1 64.3 L57.5 64.3 L37.4 84.5 L15.1 84.5 Z", // شبه المنحرف الأيسر
+  "M67.2 64.3 h21.5 v20.5 h-21.5 Z", // المستطيل الأيمن
+  "M55.3 74.7 L66.5 84.9 L51.8 99.8 L40.4 88.9 Z", // المعين السفلي المائل
+].join(" ");
+
+const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><g transform="translate(37.6 46) scale(4.2)"><path fill="#C9A227" d="${MARK_PATHS}"/></g></svg>`;
 
 /** درجات الذهب للجسيمات — عمق معدني بدل لون مسطّح */
 const GOLD_SHADES = ["#F0D98A", "#E8C766", "#D9B43F", "#C9A227", "#B8932B"] as const;
@@ -154,7 +171,7 @@ export function SplashScreen() {
         size,
         Math.max(2, Math.round(dpr * 1.6)),
       );
-      // 4) معاينة نقاط الهدف: علامة الجنوب (SVG مرسوم على canvas)
+      // 4) معاينة نقاط الهدف: الشعار الرسمي المتفق عليه (SVG على canvas)
       const img = new Image();
       img.decoding = "sync";
       await new Promise<void>((resolve, reject) => {
@@ -164,7 +181,7 @@ export function SplashScreen() {
       }).catch(() => undefined);
       if (cancelled) return;
 
-      const logoSide = Math.round(size * 0.66);
+      const logoSide = Math.round(size * 0.72);
       const logoOff = Math.round((size - logoSide) / 2);
       const logoPts = samplePoints(
         (c) => c.drawImage(img, logoOff, logoOff, logoSide, logoSide),
@@ -289,7 +306,7 @@ export function SplashScreen() {
   const showCrispLogo = animDone;
 
   return (
-    <div className="flex min-h-full w-full flex-col items-center justify-center bg-[#0B0B0C] px-8 py-12 text-center">
+    <div className="flex min-h-full w-full flex-1 flex-col items-center justify-center bg-[#0B0B0C] px-8 py-12 text-center">
       {/* منطقة الافتتاحية: Canvas الجسيمات ثم crossfade إلى الشعار الحاد */}
       <div className="relative flex items-center justify-center" style={{ width: "min(72vw, 300px)", height: "min(72vw, 300px)" }}>
         <canvas
@@ -302,7 +319,7 @@ export function SplashScreen() {
           <img
             src="/logo.svg"
             alt="شعار محفظة الجنوب"
-            className="sw-rise-in h-[62%] w-[62%] object-contain"
+            className="sw-rise-in h-[74%] w-[74%] object-contain"
             style={{ filter: "drop-shadow(0 4px 18px rgba(201,162,39,0.25))" }}
           />
         ) : null}

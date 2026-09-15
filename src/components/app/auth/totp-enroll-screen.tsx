@@ -89,7 +89,7 @@ export function TotpEnrollScreen() {
   const spacedSecret = enrollment.secret.replace(/(.{4})/g, "$1 ").trim();
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col px-4 pb-8">
+    <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-8">
       <ScreenHeader
         title={enrollment.mode === "REGISTER" ? "تفعيل المصادقة" : "إعادة تفعيل المصادقة"}
         subtitle="اربط حسابك بتطبيق مصادقة على جهازك — خطوة إلزامية واحدة"

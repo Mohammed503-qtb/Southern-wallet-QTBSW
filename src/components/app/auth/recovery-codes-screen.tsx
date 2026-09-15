@@ -74,7 +74,7 @@ export function RecoveryCodesScreen() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col px-4 pb-8">
+    <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-8">
       <ScreenHeader title="رموز الاسترداد" showBack={false} />
 
       <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-[#B45309]/30 bg-[#B45309]/[0.06] p-3">
