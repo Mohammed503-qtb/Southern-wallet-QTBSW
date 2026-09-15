@@ -9,13 +9,14 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, ChevronLeft, Copy, Loader2, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, Copy, TriangleAlert } from "lucide-react";
 import { api, ApiError, beginMoneyAttempt, clearMoneyAttempt, reuseMoneyKey } from "@/lib/api";
 import type { CurrencyCode } from "@/lib/api-types";
 import { CURRENCY_META } from "@/lib/api-types";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { PINPad } from "@/components/app/ui/pin-pad";
+import { LogoLoader } from "@/components/app/ui/logo-loader";
 import { formatDateTime } from "@/components/app/ui/utils";
 
 // ============================================================
@@ -309,10 +310,7 @@ export function PinStep({ contextLabel, error, executing, onConfirm, onCancel, c
           أدخل رمز PIN المكوّن من 6 أرقام لإتمام العملية
         </p>
         {executing ? (
-          <div className="flex flex-col items-center gap-2 py-6">
-            <Loader2 className="h-7 w-7 animate-spin text-[#C9A227]" />
-            <p className="text-[13px] font-bold text-[#5C5A56]">جارٍ تنفيذ العملية…</p>
-          </div>
+          <LogoLoader size={56} label="جارٍ تنفيذ العملية…" className="py-5" />
         ) : (
           <PINPad
             pin={pin}

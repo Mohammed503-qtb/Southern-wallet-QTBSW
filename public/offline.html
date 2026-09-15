@@ -87,15 +87,20 @@
   </head>
   <body>
     <main class="card">
-      <!-- نجمة الجنوب الثمانية — نفس هوية الشعار -->
-      <svg class="star" viewBox="0 0 100 100" role="img" aria-label="شعار محفظة الجنوب">
-        <g fill="#C9A227">
-          <rect x="38" y="0" width="24" height="24" rx="3" transform="rotate(45 50 12)" opacity="0.35"/>
-          <rect x="38" y="76" width="24" height="24" rx="3" transform="rotate(45 50 88)" opacity="0.35"/>
-          <rect x="0" y="38" width="24" height="24" rx="3" transform="rotate(45 12 50)" opacity="0.35"/>
-          <rect x="76" y="38" width="24" height="24" rx="3" transform="rotate(45 88 50)" opacity="0.35"/>
-          <rect x="42.5" y="12" width="15" height="76" rx="3" transform="rotate(45 50 50)"/>
-          <rect x="42.5" y="12" width="15" height="76" rx="3" transform="rotate(-45 50 50)"/>
+      <!-- علامة الجنوب الثلاثية — نفس هوية الشعار الرسمي الشفاف -->
+      <svg class="star" viewBox="0 0 512 512" role="img" aria-label="شعار محفظة الجنوب">
+        <defs>
+          <linearGradient id="og" x1="0.15" y1="0" x2="0.85" y2="1">
+            <stop offset="0" stop-color="#F0D98A"/>
+            <stop offset="0.42" stop-color="#D9B43F"/>
+            <stop offset="0.72" stop-color="#C9A227"/>
+            <stop offset="1" stop-color="#8F7312"/>
+          </linearGradient>
+        </defs>
+        <g transform="translate(40 40) scale(14.4)" fill="url(#og)">
+          <path d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"/>
+          <polygon points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"/>
+          <path d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"/>
         </g>
       </svg>
       <h1>لا يوجد اتصال بالإنترنت</h1>

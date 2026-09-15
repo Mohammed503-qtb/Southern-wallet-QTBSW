@@ -230,3 +230,44 @@ html {
   background: #C9A227;
   color: #0B0B0C;
 }
+
+/* ============================================================
+   محمّل الشعار الموحّد (LogoLoader) — هوية انتظار واحدة
+   الشعار الشفاف داخل حلقة ذهبية دوّارة وهالة نابضة
+   ============================================================ */
+
+/* حلقة الدوران — تسارع/تباطؤ ناعم مع خط بداية واضح */
+@keyframes sw-logo-ring {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.sw-logo-ring {
+  animation: sw-logo-ring 1.05s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+}
+
+/* هالة ذهبية تتنفس خلف الشعار */
+@keyframes sw-logo-glow {
+  0%, 100% { opacity: 0.55; transform: scale(0.94); }
+  50%      { opacity: 1;    transform: scale(1.05); }
+}
+.sw-logo-glow {
+  animation: sw-logo-glow 1.6s ease-in-out infinite;
+}
+
+/* نبض رقيق للشعار نفسه — إحساس «حي» بلا مبالغة */
+@keyframes sw-logo-beat {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.045); }
+}
+.sw-logo-beat {
+  animation: sw-logo-beat 1.6s ease-in-out infinite;
+}
+
+/* ظهور ناعم للعناصر بعد شاشة البداية (crossfade الشعار الحاد) */
+@keyframes sw-rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.sw-rise-in {
+  animation: sw-rise-in 0.55s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}

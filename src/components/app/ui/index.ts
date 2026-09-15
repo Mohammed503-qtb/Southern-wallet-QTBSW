@@ -21,3 +21,4 @@ export * from "./otp-input";
 export * from "./pin-pad";
 export * from "./empty-state";
 export * from "./error-state";
+export * from "./logo-loader";

@@ -1,15 +1,15 @@
 /**
- * محفظة الجنوب — مولّد أيقونات PWA (Task 9-d)
+ * محفظة الجنوب — مولّد أيقونات PWA (v2 — الهوية الشفافة)
  * ------------------------------------------------------------
- * يقرأ الشعار الأصلي `public/logo.jpg` (نجمة هندسية ثمانية سوداء/بيضاء
- * على خلفية بيضاء) ويولّد منه حزمة أيقونات جاهزة للإنتاج في `public/icons/`:
+ * يقرأ الشعار الرسمي الشفاف `public/logo.svg` (علامة الجنوب الثلاثية
+ * بتدرج ذهبي، بلا خلفية) ويولّد منه حزمة أيقونات شفافة بالكامل —
+ * «فقط يظهر الشعار» كما في هوية المنتج:
  *
- *  - icon-192.png        (192×192, purpose "any")   خلفية بيضاء + شعار متوسط + حواف دائرية لطيفة
+ *  - icon-192.png        (192×192, purpose "any")   شعار شفاف ~72% متوسط
  *  - icon-512.png        (512×512, purpose "any")   نفس الهوية بدقة أعلى
- *  - maskable-192.png    (192×192, purpose "maskable") خلفية كاملة (full-bleed) والمحتوى داخل
- *                        المنطقة الآمنة (قطر ≤ 80% من الضلع) ليصمد أي قص دائري من المشغّل
+ *  - maskable-192.png    (192×192, purpose "maskable") شعار شفاف ~54% داخل المنطقة الآمنة
  *  - maskable-512.png    (512×512, purpose "maskable")
- *  - apple-touch-icon.png (180×180, مربع مصمت بلا شفافية — iOS يقص الحواف بنفسه)
+ *  - apple-touch-icon.png (180×180, شفاف — iOS يركّب خلفية داكنة تلقائياً فتتناسق مع هوية أسود الجنوب)
  *  - favicon.ico         (16+32+48 داخل حاوية ICO بصيغة PNG — توافق أوسع)
  *
  * التشغيل:  bun scripts/gen-icons.ts
@@ -17,68 +17,46 @@
  */
 
 import sharp from "sharp";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
-const SRC = path.join(ROOT, "public", "logo.jpg");
+const SRC = path.join(ROOT, "public", "logo.svg");
 const OUT_DIR = path.join(ROOT, "public", "icons");
 const FAVICON_PATH = path.join(ROOT, "public", "favicon.ico");
 
-const WHITE = { r: 255, g: 255, b: 255, alpha: 255 };
-
-/** إزالة الهوامش البيضاء من الشعار المصدر للحصول على بلاطة الشعار النقية */
-async function getLogoTile(): Promise<{ data: Buffer; width: number; height: number }> {
-  const data = await sharp(SRC)
-    .trim({ background: "#FFFFFF", threshold: 12 })
+/** قراءة SVG المصدر وتحجيمه إلى بلاطة شفافة بالمقاس المطلوب */
+async function renderLogoTile(size: number, density = 2): Promise<Buffer> {
+  const svg = await readFile(SRC, "utf-8");
+  return sharp(Buffer.from(svg), { density })
+    .resize(size, size, { fit: "contain", kernel: "lanczos3" })
     .png()
     .toBuffer();
-  const meta = await sharp(data).metadata();
-  if (!meta.width || !meta.height) throw new Error("تعذر قراءة أبعاد الشعار");
-  return { data, width: meta.width, height: meta.height };
 }
 
 interface IconOptions {
   size: number;
   /** نسبة أطول ضلع للمحتوى من حجم الأيقونة (0..1) */
   contentRatio: number;
-  /** تدوير حواف الخلفية (يترك الزوايا شفافة) — للأيقونات purpose=any فقط */
-  rounded: boolean;
-  /** نصف قطر الزاوية كنسبة من الضلع (عند rounded) */
-  cornerRatio?: number;
 }
 
-/** تركيب أيقونة: خلفية بيضاء + بلاطة الشعار متوسطة (+ حواف دائرية اختيارية) */
-async function buildIcon(tile: { data: Buffer; width: number; height: number }, opts: IconOptions): Promise<Buffer> {
-  const { size, contentRatio, rounded, cornerRatio = 0.225 } = opts;
+/** تركيب أيقونة شفافة: الشعار فقط متوسطاً — لا خلفية إطلاقاً */
+async function buildTransparentIcon(opts: IconOptions): Promise<Buffer> {
+  const { size, contentRatio } = opts;
+  const logoSide = Math.round(size * contentRatio);
+  const logo = await renderLogoTile(logoSide, size >= 256 ? 4 : 3);
 
-  // تحجيم الشعار مع الحفاظ على النسبة (Lanczos لجودة عالية عند التصغير)
-  const maxSide = Math.round(size * contentRatio);
-  const scale = Math.min(maxSide / tile.width, maxSide / tile.height);
-  const w = Math.max(1, Math.round(tile.width * scale));
-  const h = Math.max(1, Math.round(tile.height * scale));
-  const resized = await sharp(tile.data)
-    .resize(w, h, { fit: "inside", kernel: "lanczos3" })
+  // لوحة RGBA شفافة بالكامل ثم تركيب الشعار متوسطاً
+  const base = await sharp({
+    create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
     .png()
     .toBuffer();
 
-  const left = Math.round((size - w) / 2);
-  const top = Math.round((size - h) / 2);
-
-  let pipeline = sharp({
-    create: { width: size, height: size, channels: 4, background: WHITE },
-  }).composite([{ input: resized, left, top }]);
-
-  if (rounded) {
-    const r = Math.round(size * cornerRatio);
-    const mask = Buffer.from(
-      `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">` +
-        `<rect x="0" y="0" width="${size}" height="${size}" rx="${r}" ry="${r}" fill="#FFFFFF"/></svg>`,
-    );
-    pipeline = pipeline.composite([{ input: mask, blend: "dest-in" }]);
-  }
-
-  return pipeline.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
+  return sharp(base)
+    .composite([{ input: logo, left: Math.round((size - logoSide) / 2), top: Math.round((size - logoSide) / 2) }])
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
 }
 
 /** حاوية ICO تحتوي عدة صور PNG (16/32/48) — مدعومة في كل المتصفحات الحديثة */
@@ -108,34 +86,32 @@ function buildIco(entries: Array<{ size: number; data: Buffer }>): Buffer {
 
 async function main(): Promise<void> {
   await mkdir(OUT_DIR, { recursive: true });
-  const tile = await getLogoTile();
-  console.log(`• بلاطة الشعار بعد إزالة الهوامش: ${tile.width}×${tile.height}px`);
 
   const outputs: Array<{ file: string; buffer: Buffer; label: string }> = [];
 
-  // 1) أيقونات purpose=any: شعار متوسط (~72%) على خلفية بيضاء بحواف دائرية (~22.5%)
+  // 1) أيقونات purpose=any: الشعار الشفاف وحده (~72% من الضلع)
   for (const size of [192, 512]) {
     outputs.push({
       file: `icon-${size}.png`,
-      buffer: await buildIcon(tile, { size, contentRatio: 0.72, rounded: true }),
-      label: `any ${size}×${size} (حواف دائرية)`,
+      buffer: await buildTransparentIcon({ size, contentRatio: 0.72 }),
+      label: `any ${size}×${size} (شفافة)`,
     });
   }
 
-  // 2) أيقونات maskable: خلفية full-bleed والمحتوى ≤56% (القطر 0.56×√2 ≈ 0.79 < 0.80 المنطقة الآمنة)
+  // 2) أيقونات maskable: الشعار داخل المنطقة الآمنة (54% — القطر 0.54×√2 ≈ 0.76 < 0.80)
   for (const size of [192, 512]) {
     outputs.push({
       file: `maskable-${size}.png`,
-      buffer: await buildIcon(tile, { size, contentRatio: 0.56, rounded: false }),
-      label: `maskable ${size}×${size} (منطقة آمنة)`,
+      buffer: await buildTransparentIcon({ size, contentRatio: 0.54 }),
+      label: `maskable ${size}×${size} (منطقة آمنة، شفافة)`,
     });
   }
 
-  // 3) apple-touch-icon: 180×180 مصمتة بلا شفافية (iOS يقص الزوايا بنفسه)
+  // 3) apple-touch-icon: 180×180 شفافة (iOS يركّب خلفية سوداء خلفها — الهوية الذهبية على أسود الجنوب)
   outputs.push({
     file: "apple-touch-icon.png",
-    buffer: await buildIcon(tile, { size: 180, contentRatio: 0.66, rounded: false }),
-    label: "apple-touch 180×180",
+    buffer: await buildTransparentIcon({ size: 180, contentRatio: 0.66 }),
+    label: "apple-touch 180×180 (شفافة)",
   });
 
   // 4) favicon.ico: 16+32+48 (محتوى أكبر ليبقى مقروءاً في الأحجام الدقيقة)
@@ -143,12 +119,12 @@ async function main(): Promise<void> {
   for (const size of [16, 32, 48]) {
     icoEntries.push({
       size,
-      data: await buildIcon(tile, { size, contentRatio: 0.94, rounded: false }),
+      data: await buildTransparentIcon({ size, contentRatio: 0.94 }),
     });
   }
   const ico = buildIco(icoEntries);
 
-  // كتابة الملفات + تحقق صريح من الأبعاد
+  // كتابة الملفات + تحقق صريح من الأبعاد والشفافية
   for (const { file, buffer, label } of outputs) {
     await writeFile(path.join(OUT_DIR, file), buffer);
     const meta = await sharp(buffer).metadata();
@@ -156,9 +132,9 @@ async function main(): Promise<void> {
     console.log(`✓ public/icons/${file} — ${label} (${meta.width}×${meta.height}, alpha=${hasAlpha})`);
   }
   await writeFile(FAVICON_PATH, ico);
-  console.log(`✓ public/favicon.ico — 16+32+48 (حاوية ICO) (${ico.length} bytes)`);
+  console.log(`✓ public/favicon.ico — 16+32+48 (حاوية ICO شفافة) (${ico.length} bytes)`);
 
-  console.log("\nتم توليد حزمة أيقونات PWA بنجاح ✨");
+  console.log("\nتم توليد حزمة أيقونات PWA الشفافة بنجاح ✨");
 }
 
 main().catch((err) => {
