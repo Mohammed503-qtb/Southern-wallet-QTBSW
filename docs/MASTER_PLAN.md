@@ -1,0 +1,3498 @@
+<!--
+محفظة الجنوب — South Wallet | الخطة الرئيسية الحاكمة (Master PLAN)
+الأصل: الملف الذي سلّمه صاحب المنتج في بداية المشروع (upload/Pasted Content_1789156753860.txt)
+        نُقل إلى docs/MASTER_PLAN.md عند ترتيب المستودع (2026-09-13) ليكون المستودع مكتفياً بذاته.
+المكانة: المرجع الأعلى في سلم الأولويات عند أي تعارض:
+        Master PLAN (هذا الملف) > docs/SRS.md > بقية وثائق docs/
+        (وثّقت كل قرارات التنفيذ المشتقة منه في worklog.md وdocs/history/)
+ملاحظة: بنوده وُلّدت قبل القرارات التنفيذية (مثلاً: NestJS/Flutter المقترحَين في الأصل
+        استُبدلا عملياً بـ Next.js واحدة خادمة+واجهة؛ وSMS استُبدل بمصادقة TOTP) —
+        هذا التطور موثق في وثائق docs/ وسجل worklog.md.
+-->
+
+Master PLAN.md
+
+محفظة الجنوب — South Wallet
+
+0. تعريف المشروع
+
+محفظة الجنوب هي محفظة مالية رقمية تعمل على Android وiPhone، وتقدم للمستخدم المؤهل منظومة مالية رقمية متكاملة تشمل الرصيد والمحافظ متعددة العملات، التحويل، الإيداع، السحب، الدفع، QR، شحن الرصيد، الفواتير، الخدمات، الحصالة، كروت الشبكة، سجل العمليات، الإيصالات، الإشعارات، الدعم، وإدارة الحساب.
+
+التطبيق ليس نسخة برمجية أو بصرية من أي تطبيق آخر. يتم الاستفادة من الفئات الوظيفية المعروفة في محافظ الدفع الرقمية، بينما تكون الهوية البصرية والاسم والتصميم والأصول البرمجية والبصرية الخاصة بمحفظة الجنوب أصلية ومستقلة.
+
+مرجع الوظائف الحالية التي يجب أن يغطيها المشروع يشمل التحويل، سداد الفواتير، شحن الرصيد، دفع المشتريات عبر QR أو رقم نقطة البيع، السحب النقدي، كشف العمليات، ومع الخدمات الأحدث الحصالة وكروت الشبكة.
+
+---
+
+1. الهدف الحقيقي
+
+الهدف ليس بناء تطبيق يعرض رصيدًا وينفذ بضعة أزرار.
+
+الهدف هو بناء منظومة مالية واحدة:
+
+المستخدم
+   ↓
+Flutter App
+   ↓
+Authentication
+   ↓
+Authorization
+   ↓
+Eligibility
+   ↓
+Risk & Limits
+   ↓
+Transaction Engine
+   ↓
+Ledger
+   ↓
+Wallet Balances
+   ↓
+Notifications / Receipts / Reports
+   ↓
+Admin Control
+   ↓
+Audit & Reconciliation
+
+كل عملية مالية يجب أن تبدأ من طلب واضح وتنتهي بنتيجة واضحة ومسجلة.
+
+---
+
+2. المنصات
+
+العميل
+
+- Android
+- iPhone
+
+الإدارة
+
+لوحة إدارة متجاوبة يمكن تشغيلها من المتصفح، مع إمكانية توفير تطبيق إداري لاحقًا عند الحاجة.
+
+التقنية الأساسية
+
+- Flutter
+- Dart
+- Backend API
+- PostgreSQL
+- Authentication
+- Storage
+- Notification service
+- Background jobs عند الحاجة
+
+يجب أن يكون Flutter هو التطبيق الأساسي للهاتف، وليس WebView أو HTML/CSS متنكرًا كتطبيق.
+
+---
+
+3. القاعدة الأساسية للمشروع
+
+لا توجد عملية مالية حقيقية يقرر نجاحها Flutter وحده.
+
+Flutter مسؤول عن:
+
+- عرض الحالة.
+- جمع البيانات.
+- التحقق الأولي من المدخلات.
+- إرسال الطلب.
+- عرض النتيجة.
+- تخزين البيانات المحلية الآمنة غير المالية عند الحاجة.
+
+الخادم مسؤول عن:
+
+- الصلاحيات.
+- الأهلية.
+- الرصيد.
+- الرسوم.
+- الحدود.
+- المخاطر.
+- تنفيذ المعاملة.
+- Ledger.
+- تغيير الحالة.
+- منع التكرار.
+- التراجع.
+- التدقيق.
+
+قاعدة الحقيقة المالية هي الخادم + Ledger وليس الهاتف.
+
+---
+
+4. المنطقة الجنوبية
+
+4.1 المبدأ
+
+التطبيق مخصص للمناطق الجنوبية التي يحددها النظام.
+
+لكن المنطقة ليست Boolean ثابتة داخل التطبيق.
+
+يجب إنشاء نظام جغرافي مركزي:
+
+regions
+districts
+areas
+eligibility_policies
+
+وكل منطقة تحتوي:
+
+id
+name
+code
+enabled
+registration_enabled
+transaction_enabled
+notes
+
+4.2 الأهلية
+
+الأهلية لا تعتمد على GPS وحده.
+
+يتم تقييم:
+
+- منطقة المستخدم المسجلة.
+- بيانات التوثيق.
+- رقم الهاتف.
+- الإشارات الجغرافية المتاحة.
+- حالة الحساب.
+- سياسة المنطقة الحالية.
+- إشارات الأمان عند الحاجة.
+
+GPS يمكن استخدامه كإشارة مساعدة، وليس كوحيد للحكم.
+
+4.3 حالات الأهلية
+
+ELIGIBLE
+PENDING_REVIEW
+RESTRICTED
+OUTSIDE_SERVICE_AREA
+BLOCKED
+
+4.4 عند وجود المستخدم خارج المنطقة
+
+لا يتم حذف حسابه أو أمواله.
+
+يمكن للنظام حسب السياسة:
+
+السماح بالدخول فقط
+أو
+منع عمليات معينة
+أو
+تقييد الحساب
+أو
+طلب مراجعة
+
+ولا يتم اتخاذ قرار مالي خطير بسبب إشارة موقع واحدة غير موثوقة.
+
+---
+
+5. المستخدم والحساب
+
+المستخدم هو الكيان الأساسي، لكن بيانات المستخدم لا تساوي المحفظة.
+
+البنية المنطقية:
+
+User
+ ├── Profile
+ ├── KYC
+ ├── Devices
+ ├── Sessions
+ ├── Wallets
+ ├── Transactions
+ ├── Notifications
+ ├── Support Tickets
+ └── Audit-visible events
+
+---
+
+6. حالات حساب المستخدم
+
+PENDING
+ACTIVE
+RESTRICTED
+FROZEN
+SUSPENDED
+CLOSED
+
+ACTIVE
+
+جميع الوظائف المسموحة لمستوى المستخدم تعمل.
+
+RESTRICTED
+
+بعض الخدمات فقط.
+
+FROZEN
+
+تجميد العمليات الحساسة.
+
+SUSPENDED
+
+تعطيل الحساب حتى إجراء إداري.
+
+CLOSED
+
+الحساب مغلق حسب الإجراءات المسموحة، مع الاحتفاظ بالسجلات اللازمة للتدقيق والالتزامات.
+
+---
+
+7. التسجيل
+
+التدفق الأساسي:
+
+فتح التطبيق
+↓
+فحص إصدار التطبيق
+↓
+فحص حالة النظام
+↓
+اختيار إنشاء حساب
+↓
+رقم الهاتف
+↓
+OTP
+↓
+البيانات الأساسية
+↓
+تحديد المنطقة
+↓
+شروط الاستخدام
+↓
+فحص الأهلية
+↓
+إنشاء الحساب
+↓
+إنشاء PIN
+↓
+تسجيل الجهاز
+↓
+تهيئة المحفظة
+↓
+Home
+
+لا يتم اعتبار التسجيل مكتملًا لمجرد نجاح OTP.
+
+---
+
+8. تسجيل الدخول
+
+Open
+↓
+Version Check
+↓
+System Check
+↓
+Security Check
+↓
+Session Check
+↓
+PIN / Biometric
+↓
+Home
+
+عند تسجيل الخروج:
+
+- إلغاء session الحالية.
+- الاحتفاظ بالجهاز الموثوق حسب السياسة.
+- عدم حفظ أي أسرار مالية في التخزين المحلي المكشوف.
+
+---
+
+9. PIN والـ Biometric
+
+PIN مخصص لإثبات نية المستخدم في العمليات الحساسة.
+
+يدعم:
+
+- PIN
+- Biometric
+- Device Authentication
+
+الـ PIN لا يخزن كنص صريح.
+
+العمليات التي يمكن أن تطلب إعادة التحقق:
+
+- تحويل.
+- سحب.
+- شراء.
+- تغيير بيانات حساسة.
+- إضافة جهاز.
+- تغيير PIN.
+- إجراءات مالية حساسة أخرى.
+
+---
+
+10. الأجهزة
+
+لكل جهاز سجل:
+
+device_id
+user_id
+platform
+first_seen
+last_seen
+trusted
+blocked
+risk_status
+
+يمكن للمستخدم مشاهدة أجهزته.
+
+وتستطيع الإدارة:
+
+- مشاهدة الجهاز.
+- إلغاء الثقة.
+- حظره.
+- إنهاء الجلسات.
+
+---
+
+11. المحفظة
+
+كل مستخدم يمتلك Wallet واحدة أو أكثر حسب العملة.
+
+مثال:
+
+Wallet YER
+Wallet SAR
+Wallet USD
+
+كل محفظة لها:
+
+currency
+available_balance
+pending_balance
+frozen_balance
+status
+
+---
+
+12. الرصيد
+
+لا يعتمد النظام على متغير واحد فقط.
+
+الحالة المالية المنطقية:
+
+Available
++
+Pending
++
+Frozen
+
+لا يجوز للتطبيق أن يخترع الرصيد.
+
+الرصيد المعروض يأتي من الخادم.
+
+---
+
+13. العملات
+
+العملات كيان مستقل:
+
+currencies
+
+ويحتوي:
+
+code
+name
+symbol
+decimals
+enabled
+deposit_enabled
+withdrawal_enabled
+transfer_enabled
+
+الإدارة تستطيع تفعيل أو تعطيل عملة.
+
+---
+
+14. دفتر الأستاذ Ledger
+
+هذه أهم طبقة مالية.
+
+كل تغيير فعلي في الأموال يولد Ledger Entry.
+
+مثال تحويل:
+
+Sender Wallet
+      ↓ debit
+
+Fee Account
+      ↑ fee
+
+Receiver Wallet
+      ↑ credit
+
+لا يتم تعديل العمليات المالية القديمة لإخفاء خطأ.
+
+إذا لزم التصحيح:
+
+Original Transaction
+        ↓
+Reversal / Adjustment
+
+---
+
+15. مبدأ Atomicity
+
+أي عملية مالية يجب أن تكون ذرية.
+
+مثلاً التحويل:
+
+Validate
+↓
+Lock required records
+↓
+Debit
+↓
+Fee
+↓
+Credit
+↓
+Ledger
+↓
+Commit
+
+إما تنجح كلها أو يتم Rollback.
+
+لا توجد:
+
+خصم حدث
+والإضافة لم تحدث
+
+بسبب انقطاع التطبيق.
+
+---
+
+16. Idempotency
+
+كل عملية حساسة لها معرف طلب فريد.
+
+إذا ضغط المستخدم مرتين أو عاد الإنترنت بعد انقطاع:
+
+يجب ألا تنتج عمليتان ماليتان.
+
+same idempotency_key
+=
+same transaction result
+
+---
+
+17. حالات المعاملة
+
+كل Transaction تستخدم State Machine واضحة.
+
+CREATED
+↓
+VALIDATING
+↓
+AUTHORIZED
+↓
+PROCESSING
+↓
+COMPLETED
+
+أو:
+
+FAILED
+REJECTED
+CANCELLED
+EXPIRED
+REVERSED
+UNDER_REVIEW
+
+ولا يسمح بأي انتقال عشوائي بين الحالات.
+
+---
+
+18. التحويل بين المستخدمين
+
+التدفق
+
+Transfer
+↓
+Recipient
+↓
+Currency
+↓
+Amount
+↓
+Fee Calculation
+↓
+Review
+↓
+PIN / Biometric
+↓
+Server Validation
+↓
+Risk Check
+↓
+Limit Check
+↓
+Atomic Transaction
+↓
+Receipt
+↓
+Notification
+
+التحقق
+
+الخادم يتأكد من:
+
+- المرسل موجود.
+- المستفيد موجود.
+- كلا الحسابين فعالان.
+- العملة فعالة.
+- الرصيد كافٍ.
+- الحدود تسمح.
+- الرسوم محسوبة.
+- الخدمة متاحة.
+- المنطقة تسمح.
+- الحساب غير مجمد.
+- العملية ليست مكررة.
+- لا توجد قاعدة مخاطر تمنع التنفيذ.
+
+---
+
+19. تحويل إلى رقم هاتف
+
+المستخدم يدخل رقم الهاتف.
+
+النظام يبحث عن مستخدم مؤهل.
+
+قبل التأكيد يعرض الحد الأدنى المسموح من بيانات المستفيد لحماية الخصوصية.
+
+ثم يكمل نفس محرك التحويل.
+
+---
+
+20. الإيداع
+
+يدعم النظام الإيداع وفق القنوات التي يتم تشغيلها فعليًا.
+
+مثل:
+
+Agent Deposit
+Service Point Deposit
+External Network Deposit
+Admin Adjustment
+
+لكن هذه ليست أربع طرق برمجية منفصلة بالكامل.
+
+كلها تدخل محرك المعاملات المركزي.
+
+---
+
+21. طلب الإيداع عبر وكيل
+
+User
+↓
+Deposit
+↓
+Amount
+↓
+Agent
+↓
+Create Deposit Request
+↓
+Agent Confirmation
+↓
+Server Verification
+↓
+Ledger
+↓
+Wallet Credit
+↓
+Completed
+
+إذا رفض الوكيل:
+
+REJECTED
+
+إذا انتهت المهلة:
+
+EXPIRED
+
+---
+
+22. السحب
+
+Withdraw
+↓
+Currency
+↓
+Amount
+↓
+Agent / Service Point
+↓
+Fee
+↓
+Confirmation
+↓
+Hold / Authorization
+↓
+Agent Verification
+↓
+Cash Delivered
+↓
+Complete
+↓
+Ledger Finalization
+↓
+Receipt
+
+لا يتم اعتبار طلب السحب مكتملًا لمجرد إنشاء الطلب.
+
+---
+
+23. حالات السحب
+
+CREATED
+PENDING
+AUTHORIZED
+READY_FOR_COLLECTION
+COLLECTED
+COMPLETED
+REJECTED
+EXPIRED
+CANCELLED
+REVERSED
+
+---
+
+24. الدفع للتاجر
+
+يدعم:
+
+- QR
+- Merchant ID
+- Terminal/POS Number
+
+التدفق
+
+Scan QR / Enter POS
+↓
+Resolve Merchant
+↓
+Show Merchant
+↓
+Amount
+↓
+Fee
+↓
+Review
+↓
+PIN
+↓
+Risk
+↓
+Limit
+↓
+Atomic Payment
+↓
+Merchant Credit
+↓
+Receipt
+
+يجب عدم الدفع إلى جهة لا يمكن للخادم التحقق من هويتها.
+
+---
+
+25. Merchant
+
+التاجر كيان مستقل:
+
+merchant
+branch
+terminal
+qr
+settlement_account
+
+التاجر يمتلك:
+
+- بيانات تعريف.
+- فروع.
+- نقاط بيع.
+- QR.
+- عمليات.
+- تسويات.
+- رسوم.
+- حدود.
+
+---
+
+26. QR
+
+QR يجب أن يكون موقعًا/متحققًا منه.
+
+يمكن أن يحتوي على:
+
+merchant_id
+terminal_id
+currency
+amount
+reference
+version
+signature
+
+لا يجب الوثوق بنص QR وحده.
+
+---
+
+27. الشحن
+
+قسم الشحن يتعامل مع:
+
+- رقم المستخدم.
+- رقم شخص آخر.
+- الشبكة.
+- المنتج.
+- المبلغ.
+
+التدفق:
+
+Top Up
+↓
+Select Network
+↓
+Select Product
+↓
+Phone Number
+↓
+Price
+↓
+Fee
+↓
+Review
+↓
+Confirm
+↓
+Provider Request
+↓
+Provider Result
+↓
+Transaction Result
+↓
+Receipt
+
+---
+
+28. الشبكات
+
+الشبكة كيان إداري:
+
+network
+ ├─ name
+ ├─ logo
+ ├─ enabled
+ ├─ services
+ ├─ products
+ ├─ limits
+ └─ fee rules
+
+الإدارة تستطيع تشغيل أو تعطيل الشبكة.
+
+---
+
+29. منتجات الشبكات
+
+مثلاً:
+
+Prepaid
+Postpaid
+Bundles
+Internet
+Cards
+
+كل منتج يحتوي:
+
+provider
+network
+product_code
+display_name
+price
+currency
+enabled
+
+---
+
+30. الفواتير
+
+Bills
+↓
+Select Provider
+↓
+Enter Customer Number
+↓
+Fetch Bill
+↓
+Show Due Amount
+↓
+Confirm
+↓
+Pay
+↓
+Provider Result
+↓
+Receipt
+
+إذا كان مزود الخدمة يدعم الاستعلام الفوري، يجب عدم السماح للمستخدم بتعديل المبلغ المستحق دون قاعدة واضحة.
+
+---
+
+31. الحصالة
+
+الحصالة محفظة ادخار داخلية وليست رصيدًا وهميًا.
+
+Savings Goal
+ ├─ title
+ ├─ target_amount
+ ├─ current_amount
+ ├─ currency
+ ├─ target_date
+ └─ status
+
+الإيداع
+
+Main Wallet
+↓
+Savings Transfer
+↓
+Ledger
+↓
+Savings Balance
+
+السحب
+
+نفس المبدأ في الاتجاه المعاكس.
+
+---
+
+32. كروت الشبكة
+
+Network Cards
+↓
+Select Network
+↓
+Select Card
+↓
+Price
+↓
+Confirm
+↓
+Debit Wallet
+↓
+Reserve Card
+↓
+Deliver Card Code
+↓
+Mark Sold
+
+يجب ألا يظهر الكود النهائي قبل نجاح الدفع.
+
+إذا فشل الدفع، لا يتم استهلاك الكرت.
+
+---
+
+33. الخدمات الأخرى
+
+الخدمات الإضافية يجب أن تعمل كمحرك Services وليس كشاشات مستقلة بلا بنية.
+
+كل Service يحدد:
+
+service
+category
+provider
+fields
+pricing
+fees
+limits
+workflow
+enabled
+
+وهكذا يمكن الإدارة تشغيل وإيقاف الخدمة.
+
+---
+
+34. العملات الرقمية
+
+العملات الرقمية جزء منفصل عن العملات التقليدية.
+
+النموذج:
+
+digital_assets
+blockchain_networks
+addresses
+crypto_transactions
+
+كل أصل يرتبط بشبكة.
+
+مثال:
+
+USDT
+ ├─ TRON
+ ├─ BSC
+ └─ Ethereum
+
+الشبكة والأصل ليسا كيانًا واحدًا.
+
+---
+
+35. قواعد العملات الرقمية
+
+لكل شبكة:
+
+deposit_enabled
+withdrawal_enabled
+minimum_deposit
+minimum_withdrawal
+confirmation_requirement
+network_fee
+daily_limit
+
+ولا توضع المفاتيح الخاصة في Flutter أو في قاعدة البيانات العامة.
+
+إذا دخل المشروع في حفظ أو نقل أصول حقيقية، يتم استخدام طبقة Custody/Wallet Service آمنة ومراجعة مستقلة، وليس مجرد CRUD داخل لوحة الإدارة.
+
+---
+
+36. الرسوم
+
+لا توجد رسوم ثابتة مدفونة داخل التطبيق.
+
+توجد:
+
+fee_rules
+
+القاعدة يمكن أن تشمل:
+
+service
+currency
+user_level
+region
+min_amount
+max_amount
+fixed_fee
+percentage_fee
+min_fee
+max_fee
+enabled
+effective_from
+effective_to
+
+---
+
+37. تثبيت الرسوم داخل المعاملة
+
+عند تنفيذ العملية، تحفظ المعاملة:
+
+fee_amount
+fee_rule_id
+fee_version
+
+حتى إذا غيرت الإدارة الرسوم لاحقًا، لا تتغير المعاملات القديمة.
+
+---
+
+38. الحدود
+
+محرك Limits مركزي.
+
+يشمل:
+
+per_transaction
+daily
+weekly
+monthly
+balance
+
+ويطبق حسب:
+
+- المستخدم.
+- مستوى التوثيق.
+- العملة.
+- الخدمة.
+- المنطقة.
+
+قبل أي عملية:
+
+Check Current Usage
+↓
+Add Requested Amount
+↓
+Compare Against Limit
+
+---
+
+39. صلاحيات المستخدم
+
+صلاحيات المستخدم لا تعتمد على إخفاء الزر.
+
+حتى لو ظهر زر بالخطأ:
+
+الخادم يمنع العملية.
+
+مثال:
+
+Button hidden
++
+Server Authorization
+
+وليس:
+
+Button hidden only
+
+---
+
+40. KYC
+
+حسابات المستخدمين قد تمر بمراحل توثيق.
+
+NOT_STARTED
+PENDING
+UNDER_REVIEW
+APPROVED
+REJECTED
+EXPIRED
+REQUIRES_UPDATE
+
+الملفات والمعلومات الحساسة تحفظ في Storage آمن ولا تعرض لأدوار الإدارة بلا صلاحية.
+
+---
+
+41. رفض التوثيق
+
+يتم تسجيل:
+
+rejection_reason
+reviewer
+reviewed_at
+
+ويستطيع المستخدم إعادة التقديم عندما تسمح السياسة.
+
+---
+
+42. إدارة المستخدمين
+
+الإدارة تستطيع:
+
+- البحث.
+- التصفية.
+- فتح ملف المستخدم.
+- مشاهدة الحالة.
+- مشاهدة KYC.
+- إدارة الأجهزة.
+- تجميد.
+- رفع التجميد.
+- تحديد مستوى الحساب.
+- مشاهدة العمليات.
+- إضافة ملاحظة إدارية.
+- فتح حالة دعم.
+- تنفيذ الإجراءات التي تسمح بها صلاحياتها.
+
+---
+
+43. الإدارة المالية
+
+لا يوجد زر خطير باسم:
+
+«تعديل الرصيد»
+
+بشكل مباشر.
+
+بدلًا من ذلك:
+
+Adjustment Request
+↓
+Amount
+↓
+Reason
+↓
+Reference
+↓
+Approval
+↓
+Ledger Entry
+
+وبذلك يعرف النظام لماذا تغير الرصيد.
+
+---
+
+44. تسوية الرصيد
+
+الإدارة ترى:
+
+Wallet Balance
+vs
+Ledger Expected Balance
+
+وأي اختلاف ينتج:
+
+RECONCILIATION_ALERT
+
+ولا يتم إصلاحه بحذف البيانات.
+
+يتم إنشاء Adjustment/Reversal واضح.
+
+---
+
+45. سجل التدقيق
+
+كل تغيير إداري حساس ينتج Audit Log:
+
+actor_id
+role
+action
+target_type
+target_id
+before
+after
+reason
+timestamp
+ip
+device
+
+يشمل:
+
+- تجميد المستخدم.
+- رفع التجميد.
+- تغيير الرسوم.
+- تغيير الحدود.
+- تشغيل خدمة.
+- إيقاف خدمة.
+- تغيير منطقة.
+- تغيير إصدار.
+- تعديل المحتوى.
+- التسويات.
+- الإجراءات المالية الحساسة.
+
+---
+
+46. أدوار الإدارة
+
+الأدوار المقترحة:
+
+Super Admin
+
+صلاحية كاملة.
+
+Finance Admin
+
+الأموال والرسوم والتسويات.
+
+Operations Admin
+
+المستخدمون والعمليات والوكلاء.
+
+Support Admin
+
+الدعم والتذاكر.
+
+Content Admin
+
+المحتوى والإشعارات.
+
+Security Admin
+
+الجلسات والأجهزة والحوادث الأمنية.
+
+Auditor
+
+قراءة وتقارير وتدقيق.
+
+والصلاحيات نفسها تكون قابلة للإدارة.
+
+---
+
+47. Permission Model
+
+الصلاحية ليست Role فقط.
+
+النظام:
+
+Role
+↓
+Permission
+↓
+Scope
+
+مثلاً:
+
+view_users
+freeze_user
+manage_fees
+approve_adjustment
+view_ledger
+manage_networks
+manage_content
+manage_versions
+
+---
+
+48. Dashboard
+
+لوحة البداية تعرض:
+
+Active Users
+Total Wallet Balance
+Today Deposits
+Today Withdrawals
+Today Transfers
+Today Fees
+Pending Transactions
+Failed Transactions
+Frozen Accounts
+KYC Pending
+Fraud Alerts
+System Health
+
+الأرقام تأتي من طبقات البيانات الفعلية ولا يتم حسابها بطريقة عشوائية من واجهة المستخدم.
+
+---
+
+49. إدارة الخدمات
+
+الإدارة تستطيع:
+
+ON
+OFF
+MAINTENANCE
+
+لكل خدمة.
+
+مثلاً:
+
+Transfer     ON
+Deposit      ON
+Withdrawal   ON
+QR Payment   ON
+Bills        OFF
+Topup        ON
+Crypto       OFF
+
+---
+
+50. Feature Flags
+
+أي وظيفة قابلة للتشغيل التدريجي تستخدم Feature Flag.
+
+مثلاً:
+
+crypto_enabled
+savings_enabled
+qr_enabled
+network_cards_enabled
+
+لكن Feature Flag لا يستبدل authorization ولا الأمن.
+
+---
+
+51. صيانة النظام
+
+حالات النظام:
+
+ACTIVE
+MAINTENANCE
+READ_ONLY
+SERVICE_DEGRADED
+BLOCKED
+
+READ_ONLY
+
+يسمح للمستخدم بالمشاهدة، ويوقف العمليات المالية الجديدة.
+
+MAINTENANCE
+
+يعرض رسالة صيانة واضحة.
+
+---
+
+52. الإصدارات
+
+النظام يحتفظ:
+
+android_latest
+android_minimum
+ios_latest
+ios_minimum
+force_update
+release_notes
+store_url
+
+عند وجود إصدار أدنى جديد:
+
+App
+↓
+Version Check
+↓
+Force Update
+
+---
+
+53. المحتوى
+
+يجب فصل المحتوى عن الكود:
+
+banners
+faq
+help_articles
+terms
+privacy
+service_descriptions
+home_sections
+announcements
+
+الإدارة تغير النص والصورة والترتيب والحالة.
+
+---
+
+54. الإشعارات
+
+أنواع الإشعارات:
+
+Transaction
+Security
+KYC
+System
+Marketing
+Support
+
+كل Notification لها:
+
+title
+body
+type
+target
+deep_link
+created_at
+read_at
+
+---
+
+55. Deep Links
+
+عند الضغط على إشعار:
+
+Transaction Notification
+↓
+Open Transaction Detail
+
+أو:
+
+KYC Notification
+↓
+Open KYC
+
+الإشعار لا يفتح شاشة بلا سياق.
+
+---
+
+56. مركز الدعم
+
+كل مشكلة تتحول إلى Ticket:
+
+ticket
+ ├─ user
+ ├─ category
+ ├─ transaction
+ ├─ message
+ ├─ attachments
+ ├─ status
+ └─ assigned_admin
+
+الحالات:
+
+OPEN
+IN_PROGRESS
+WAITING_USER
+RESOLVED
+CLOSED
+
+---
+
+57. WhatsApp
+
+المطلوب هو الانتقال المباشر إلى WhatsApp، وليس WhatsApp API.
+
+التطبيق يبني رسالة آمنة ثم يفتح رابط WhatsApp.
+
+مثلاً في مشكلة معاملة:
+
+Support Request
+
+Transaction:
+XXXXXX
+
+Issue:
+...
+
+User:
+...
+
+ولا يتم وضع:
+
+- PIN
+- كلمات سر
+- مفاتيح
+- معلومات شديدة الحساسية
+
+داخل رسالة WhatsApp.
+
+الإرسال الفعلي يتم من تطبيق WhatsApp الموجود لدى المستخدم.
+
+---
+
+58. التقارير
+
+تقرير المستخدمين
+
+- التسجيلات.
+- النشاط.
+- المناطق.
+- مستويات التوثيق.
+- الحالات.
+
+التقرير المالي
+
+- الإيداع.
+- السحب.
+- التحويل.
+- الدفع.
+- الرسوم.
+- التسويات.
+
+تقرير العمليات
+
+- Completed.
+- Pending.
+- Failed.
+- Reversed.
+- Cancelled.
+
+تقرير المناطق
+
+- المستخدمون حسب المنطقة.
+- حجم العمليات.
+- الخدمات المستخدمة.
+
+---
+
+59. كشف حساب المستخدم
+
+يوفر:
+
+Date
+Type
+Reference
+Before Balance
+Amount
+Fee
+After Balance
+Status
+
+مع فلاتر:
+
+Today
+7 Days
+30 Days
+Custom
+
+---
+
+60. الإيصال
+
+كل عملية مكتملة تنتج Receipt منطقي.
+
+يشمل:
+
+Transaction ID
+Date
+Time
+Type
+Sender/Receiver or Merchant
+Currency
+Amount
+Fee
+Total
+Status
+
+لا يظهر PIN.
+
+---
+
+61. البحث
+
+على الإدارة البحث باستخدام:
+
+User ID
+Phone
+Transaction ID
+Reference
+Merchant
+Agent
+Date
+Status
+
+ويجب أن يكون البحث مركزيًا وليس لكل شاشة منطق مختلف.
+
+---
+
+62. محرك المخاطر
+
+كل عملية حساسة تمر عبر Risk Rules عند الحاجة.
+
+أمثلة للإشارات:
+
+New Device
+Many Failed PIN Attempts
+Abnormal Velocity
+Location Anomaly
+Repeated Transactions
+Suspicious Account State
+
+نتائج المحرك:
+
+ALLOW
+REVIEW
+BLOCK
+
+---
+
+63. التجميد الأمني
+
+إذا تم اكتشاف خطر:
+
+Risk Event
+↓
+Security Rule
+↓
+Freeze / Review
+↓
+Notify User
+↓
+Create Audit Event
+
+لا يتم حذف المعاملة أو الحساب تلقائيًا لإخفاء المشكلة.
+
+---
+
+64. إدارة الجلسات
+
+الجلسة لها:
+
+session_id
+user_id
+device_id
+created_at
+expires_at
+revoked_at
+
+يمكن إلغاء جلسة واحدة أو كل الجلسات.
+
+---
+
+65. التخزين المحلي
+
+ممنوع استخدام Local Storage كمصدر للحقيقة المالية.
+
+يمكن التخزين محليًا فقط لأشياء مثل:
+
+- إعدادات الواجهة.
+- اللغة.
+- الثيم.
+- آخر حالة عرض غير حساسة.
+- بيانات مؤقتة.
+- مفاتيح جلسة آمنة بالطريقة المناسبة.
+
+---
+
+66. Offline
+
+التطبيق يمكن أن يفتح بعض واجهاته في وضع Offline، لكن:
+
+لا توجد معاملة مالية Offline.
+
+إذا لم يكن الاتصال متوفرًا:
+
+لا تنفذ التحويل.
+لا تنفذ السحب.
+لا تنفذ الدفع.
+لا تخصم الرصيد محليًا.
+
+---
+
+67. حالات انقطاع الشبكة
+
+قبل إرسال الطلب
+
+لا شيء تغير.
+
+بعد إرسال الطلب وقبل وصول النتيجة
+
+عند إعادة الاتصال:
+
+Check Transaction Status
+
+ولا ينشئ المستخدم طلبًا جديدًا تلقائيًا.
+
+---
+
+68. التكاملات الخارجية
+
+أي مزود خارجي يجب أن يمر عبر Adapter:
+
+Provider Interface
+      ↓
+Network Adapter
+      ↓
+Provider
+
+حتى لا ينهار المشروع كله عند تغيير مزود واحد.
+
+---
+
+69. التعامل مع فشل المزود
+
+مثلاً شحن:
+
+Wallet Debit
+Provider Request
+
+إذا فشل المزود:
+
+Do not leave unexplained debit
+
+يتم استخدام العملية والسياسة المناسبة:
+
+Pending
+Retry
+Reverse
+Refund
+
+ويجب أن تكون النتيجة واضحة في السجل.
+
+---
+
+70. إدارة المحاولات
+
+لا يتم Retry بشكل أعمى للعمليات المالية.
+
+كل Retry يجب أن يعتمد على:
+
+transaction state
+provider reference
+idempotency
+retry policy
+
+---
+
+71. قاعدة البيانات الأساسية
+
+الكيانات الرئيسية:
+
+users
+profiles
+roles
+permissions
+role_permissions
+
+devices
+sessions
+
+regions
+districts
+eligibility_policies
+
+wallets
+wallet_balances
+currencies
+
+ledger_accounts
+ledger_entries
+
+transactions
+transaction_items
+transaction_status_history
+
+fee_rules
+limit_rules
+
+kyc_profiles
+kyc_documents
+
+agents
+merchants
+merchant_branches
+terminals
+qr_codes
+
+deposit_requests
+withdrawal_requests
+payments
+
+networks
+network_products
+topups
+
+bill_providers
+bill_products
+bill_payments
+
+savings_accounts
+savings_transactions
+
+digital_assets
+blockchain_networks
+crypto_addresses
+crypto_transactions
+
+notifications
+notification_templates
+
+support_tickets
+support_messages
+
+content
+banners
+faqs
+
+feature_flags
+system_settings
+app_versions
+
+audit_logs
+security_events
+reconciliation_runs
+reconciliation_items
+
+---
+
+72. العلاقات الأساسية
+
+User
+ ├── Wallet
+ │     ├── Balance
+ │     └── Ledger
+ │
+ ├── Transaction
+ │     ├── Fee
+ │     ├── Status History
+ │     └── Ledger Entries
+ │
+ ├── Device
+ ├── Session
+ ├── KYC
+ ├── Notification
+ └── Support Ticket
+
+---
+
+73. Transaction Reference
+
+كل معاملة تحصل على معرف فريد لا يتكرر.
+
+مثلاً:
+
+SW-20260911-XXXXXXXX
+
+يستخدم في:
+
+- الإيصال.
+- البحث.
+- الدعم.
+- التقارير.
+- WhatsApp.
+- التدقيق.
+
+---
+
+74. Transaction Metadata
+
+كل Transaction تحفظ البيانات الضرورية لتفسيرها لاحقًا:
+
+service
+currency
+amount
+fee
+actor
+source
+destination
+provider
+external_reference
+created_at
+completed_at
+status
+
+ولا نعتمد على بيانات حالية يمكن أن تتغير لاحقًا لفهم ما حدث تاريخيًا.
+
+---
+
+75. التاريخ غير القابل للتعديل
+
+المعاملة المكتملة لا تعدل.
+
+بدلًا من:
+
+UPDATE old transaction
+
+يستخدم:
+
+Reversal
+Adjustment
+Correction
+
+مع مرجع للمعاملة الأصلية.
+
+---
+
+76. التحقق المحاسبي
+
+يجب أن يكون لدينا Jobs دورية:
+
+Reconciliation
+
+تتحقق من:
+
+Ledger Total
+vs
+Wallet Balance Total
+
+وأي اختلاف ينتج Alert.
+
+---
+
+77. التقارير التشغيلية لا تغير البيانات
+
+التقارير:
+
+Read Only
+
+ولا تقوم بحسابات تغير الأرصدة.
+
+---
+
+78. حماية الإدارة
+
+الإدارة يجب أن تستخدم:
+
+- Authentication قوي.
+- MFA عند الحاجة.
+- Session Security.
+- Role Permissions.
+- Audit Logging.
+- Sensitive Action Confirmation.
+
+والأعمال المالية الخطرة يمكن أن تتطلب Approval إضافيًا.
+
+---
+
+79. الإجراءات الإدارية الحساسة
+
+أمثلة:
+
+Freeze User
+Unfreeze User
+Large Adjustment
+Fee Change
+Limit Change
+Enable Crypto
+Disable Service
+Version Block
+
+يجب أن تطلب:
+
+permission
++
+confirmation
++
+reason
++
+audit
+
+وحسب الإعداد:
+
+second approval
+
+---
+
+80. حماية البيانات
+
+المشروع يفصل بين:
+
+Public Data
+Sensitive Data
+Financial Data
+Security Data
+
+ولا يتم إعطاء كل دور إداري كل شيء.
+
+---
+
+81. الأسرار
+
+ممنوع:
+
+API Secret
+Private Key
+Admin Secret
+Database Password
+Provider Secret
+
+داخل Flutter.
+
+---
+
+82. الأخطاء
+
+كل Error من الخادم يجب أن يكون:
+
+machine_code
+user_message
+technical_context
+
+المستخدم يرى رسالة مفهومة.
+
+المطور يرى تفاصيل فنية في Logs.
+
+---
+
+83. Logging
+
+يجب الفصل بين:
+
+Application Logs
+Security Logs
+Financial Audit Logs
+
+لا يتم وضع المعلومات السرية داخل logs.
+
+---
+
+84. الصفحة الرئيسية
+
+الترتيب المنطقي:
+
+Header
+↓
+Total / Wallet Cards
+↓
+Primary Actions
+   Transfer
+   Deposit
+   Withdraw
+   Pay
+↓
+Services
+↓
+Recent Transactions
+↓
+Announcements
+
+وتتغير العناصر حسب الخدمة المفعلة.
+
+---
+
+85. صفحات التطبيق
+
+الحد الأدنى:
+
+Splash
+Onboarding
+Login
+OTP
+Create Account
+PIN
+Biometric
+Home
+Wallet Details
+Transfer
+Transfer Review
+Transfer Result
+Deposit
+Withdraw
+Pay
+Scan QR
+Merchant Payment
+Top Up
+Bills
+Services
+Savings
+Network Cards
+Digital Assets
+Transactions
+Transaction Details
+Statements
+Notifications
+Profile
+KYC
+Security
+Devices
+Settings
+Help
+Support
+WhatsApp Support
+
+كل شاشة يجب أن تكون مربوطة بالـ State والـ API المقابلة لها.
+
+---
+
+86. تفاصيل العملية
+
+عند فتح Transaction:
+
+يعرض التطبيق معلومات العملية الحالية من الخادم.
+
+ولا يعرض نجاحًا اعتمادًا على Navigation فقط.
+
+مثلاً:
+
+Payment Processing
+
+تبقى Processing حتى يصبح الخادم هو من يؤكد Completed.
+
+---
+
+87. الصفحة الرئيسية بعد التحويل
+
+بعد نجاح العملية:
+
+Wallet Balance refreshed
+Recent Transactions refreshed
+Notification created
+Receipt available
+
+لا يعتمد التطبيق على:
+
+old_balance - amount
+
+بل يعيد جلب الحالة الرسمية.
+
+---
+
+88. الإشعارات المالية
+
+عند نجاح:
+
+Sender Notification
+Receiver Notification
+
+بحسب نوع العملية.
+
+لكن عدم وصول Push Notification لا يعني فشل العملية.
+
+الإشعار مجرد قناة إبلاغ.
+
+---
+
+89. البيانات الأساسية للإدارة
+
+كل كيان إداري مهم يحتوي:
+
+created_at
+updated_at
+created_by
+updated_by
+status
+
+وحيث يلزم:
+
+deleted_at
+
+لكن البيانات المالية لا تستخدم حذفًا فعليًا لإخفاء التاريخ.
+
+---
+
+90. Soft Delete
+
+المحتوى يمكن إخفاؤه أو Archive.
+
+أما:
+
+transaction
+ledger entry
+audit log
+
+فلا تحذف من أجل تنظيف البيانات.
+
+---
+
+91. سياسة حذف الحساب
+
+طلب حذف الحساب لا يعني حذف السجلات المالية المطلوبة للتدقيق.
+
+يتم:
+
+Close User
+↓
+Retain legally/operationally required financial records
+↓
+Anonymize personal data where permitted
+
+وفق المتطلبات التنظيمية الفعلية.
+
+---
+
+92. المحتوى العربي
+
+RTL يجب أن يكون جزءًا من التصميم من البداية.
+
+لا نعالج RTL في آخر المشروع.
+
+كل المكونات:
+
+- Alignment.
+- Icons direction.
+- Navigation.
+- Numbers.
+- Forms.
+- Tables.
+- Sheets.
+
+يجب اختبارها بالعربية.
+
+---
+
+93. اللغة
+
+اللغة الافتراضية:
+
+العربية
+
+مع بنية:
+
+AR
+EN
+
+وكل النصوص المهمة تكون قابلة للتعريب من نظام Localization.
+
+---
+
+94. الثيم
+
+الهوية البصرية:
+
+South Wallet Design System
+
+تحتوي:
+
+Colors
+Typography
+Spacing
+Radius
+Shadows
+Buttons
+Inputs
+Cards
+Dialogs
+Bottom Sheets
+Navigation
+Status Components
+
+التصميم يجب أن يكون متسقًا، لا شاشة مختلفة عن الأخرى.
+
+---
+
+95. تصميم حالات الواجهة
+
+كل شاشة مالية تحتاج:
+
+Initial
+Loading
+Success
+Empty
+Error
+Pending
+Unauthorized
+Offline
+Maintenance
+Restricted
+
+لا يجوز تصميم Success فقط.
+
+---
+
+96. التطبيق والإدارة يستخدمان نفس مصدر الحقيقة
+
+لو قامت الإدارة بإيقاف السحب:
+
+Admin
+↓
+withdrawal_enabled = false
+↓
+Backend blocks new withdrawal
+↓
+App refreshes config
+↓
+Withdraw unavailable
+
+لا يعتمد الأمر على أن الإدارة "تتوقع" تحديث التطبيق.
+
+---
+
+97. Configuration
+
+يوجد Remote Configuration للخدمات والسياسات القابلة للتغيير.
+
+مثل:
+
+support_number
+currency_visibility
+service_visibility
+maintenance_state
+minimum_version
+
+---
+
+98. عدم وضع منطق حساس في Remote Config
+
+Remote Config لا يجب أن يتحول إلى لغة برمجة موازية.
+
+المنطق المالي الحقيقي يبقى Backend.
+
+Remote Config فقط للتحكم والبيانات والسياسات المسموح بها.
+
+---
+
+99. إدارة الوكلاء
+
+Agent:
+
+agent_profile
+agent_wallet
+service_points
+transactions
+limits
+fees
+status
+
+الحالات:
+
+ACTIVE
+SUSPENDED
+BLOCKED
+
+---
+
+100. Float الوكيل
+
+يوجد رصيد تشغيلي للوكيل.
+
+الإدارة ترى:
+
+Agent Float
+Cash In
+Cash Out
+Commission
+Settlement
+
+حتى تعرف قدرة الوكيل الفعلية على تنفيذ السحب.
+
+---
+
+101. عمولات الوكلاء
+
+العمولة لا تكون داخل Transaction Code.
+
+بل:
+
+agent_fee_rule
+
+وتسجل داخل المعاملة نفسها حتى لا تتأثر العمليات القديمة.
+
+---
+
+102. التاجر والتسوية
+
+الدفع للتاجر لا يعني فقط:
+
+User - amount
+
+بل:
+
+User Debit
+Fee
+Merchant Credit / Settlement
+
+ومع ذلك يمكن أن تكون التسوية للتاجر دورية حسب السياسة.
+
+---
+
+103. مكافحة التكرار
+
+كل من:
+
+- Payment
+- Transfer
+- Topup
+- Bill Payment
+- Withdrawal
+
+يجب أن يدعم:
+
+idempotency
+external_reference
+transaction_reference
+
+---
+
+104. الأمن ضد التلاعب بالتطبيق
+
+يجب اعتبار التطبيق غير موثوق بالكامل.
+
+الخادم يتحقق من:
+
+Authorization
+Amount
+Fee
+Currency
+Recipient
+Limits
+State
+
+حتى لو قام المستخدم بتعديل التطبيق محليًا.
+
+---
+
+105. إدارة العمليات المعلقة
+
+قائمة مستقلة:
+
+Pending Transactions
+
+الإدارة ترى:
+
+Transaction
+Reason
+Age
+Provider
+Current State
+Last Retry
+
+وتستطيع تنفيذ الإجراء الذي تسمح به السياسة:
+
+Retry
+Cancel
+Reverse
+Review
+
+ولا يوجد زر "Complete" عشوائي يغير العملية.
+
+---
+
+106. الدعم المتعلق بالمعاملة
+
+من Transaction Details:
+
+Report a Problem
+
+فينشأ Ticket مرتبط مباشرة بالمعاملة.
+
+هذا يلغي حاجة المستخدم لكتابة رقم العملية يدويًا.
+
+---
+
+107. WhatsApp من شاشة المعاملة
+
+Transaction
+↓
+Help
+↓
+WhatsApp
+
+التطبيق يبني رسالة تحتوي المرجع فقط والبيانات المسموح بها.
+
+---
+
+108. التنبيهات الأمنية
+
+مثل:
+
+New Device Login
+PIN Changed
+Security Event
+Account Frozen
+KYC Status Changed
+
+وتظهر داخل Notification Center.
+
+---
+
+109. إعدادات المستخدم
+
+تشمل:
+
+Profile
+Security
+PIN
+Biometric
+Devices
+Notifications
+Language
+Theme
+Privacy
+Support
+About
+Terms
+Privacy Policy
+
+---
+
+110. الحالات العالمية
+
+كل التطبيق يجب أن يفهم:
+
+No Internet
+Server Down
+Maintenance
+Force Update
+Account Frozen
+Region Restricted
+Service Disabled
+Session Expired
+
+بدل أن تظهر أخطاء مختلفة وغير مفهومة في كل شاشة.
+
+---
+
+111. QA
+
+الاختبارات ليست:
+
+flutter analyze
+
+فقط.
+
+يجب اختبار:
+
+Authentication
+
+- التسجيل.
+- OTP.
+- Login.
+- Logout.
+- Device.
+- PIN.
+
+Finance
+
+- Transfer.
+- Deposit.
+- Withdraw.
+- Payment.
+- Topup.
+- Bills.
+- Savings.
+
+Security
+
+- Authorization.
+- Duplicate requests.
+- Expired session.
+- Frozen account.
+- Invalid device.
+
+UI
+
+- RTL.
+- Arabic.
+- Loading.
+- Empty.
+- Error.
+- Offline.
+- Dark/Light حسب التصميم.
+
+---
+
+112. اختبارات End-to-End
+
+مثال:
+
+Create User
+↓
+Verify User
+↓
+Create Wallet
+↓
+Deposit
+↓
+Balance Increase
+↓
+Transfer
+↓
+Sender Decrease
+↓
+Receiver Increase
+↓
+Fee Recorded
+↓
+Notification
+↓
+Receipt
+↓
+Admin Report
+↓
+Ledger Reconciliation
+
+هذا السيناريو يجب أن يمر كاملًا.
+
+---
+
+113. اختبار فشل التحويل
+
+Balance insufficient
+→ reject
+→ no ledger mutation
+→ no balance mutation
+→ clear error
+
+---
+
+114. اختبار انقطاع الإنترنت
+
+Submit transaction
+↓
+Connection lost
+↓
+App reconnects
+↓
+Query original transaction
+↓
+Return exact original result
+
+لا ينشأ تحويل جديد.
+
+---
+
+115. اختبار الرسوم
+
+إذا تغيرت الرسوم:
+
+Old Transaction
+→ old fee snapshot
+
+New Transaction
+→ new fee rule
+
+ولا تختلط المعاملات.
+
+---
+
+116. اختبار الحدود
+
+Limit = 100,000
+Already Used = 80,000
+Request = 30,000
+
+النتيجة:
+
+Rejected
+
+لأن الاستخدام سيصبح 110,000.
+
+---
+
+117. اختبار المنطقة
+
+User:
+
+Eligible → Transfer allowed
+Restricted → policy-based restriction
+Outside service area → deny according to policy
+
+لكن لا يتم حظر شخص بسبب GPS متقلب لحظيًا دون سياسة واضحة.
+
+---
+
+118. الاختبارات الإدارية
+
+يجب اختبار:
+
+Role A
+cannot do Action B
+
+ليس فقط إخفاء الواجهة.
+
+---
+
+119. التحليلات
+
+يمكن تسجيل أحداث غير حساسة:
+
+screen_view
+service_open
+transaction_started
+transaction_completed
+support_opened
+
+لكن لا يتم تسجيل:
+
+PIN
+private keys
+full sensitive financial secrets
+
+---
+
+120. الأداء
+
+الأولوية:
+
+Fast Home
+Fast Balance
+Fast Transaction History
+Fast Transfer
+
+مع pagination للسجلات.
+
+لا يتم تحميل كل العمليات دفعة واحدة.
+
+---
+
+121. تكلفة التخزين
+
+بما أن البيئة محدودة السعة، يجب:
+
+- ضغط الصور.
+- تحديد أحجام الملفات.
+- عدم حفظ نسخ مكررة.
+- Pagination.
+- حذف Cache القديم.
+- Archive للبيانات المناسبة.
+- مراقبة Storage.
+
+لكن لا نحذف السجلات المالية لأجل تقليل السعة.
+
+---
+
+122. خطة التخزين للملفات
+
+الصور والوثائق:
+
+Storage Bucket
+↓
+Access Policy
+↓
+Signed Access
+
+ولا تكون وثائق KYC عامة.
+
+---
+
+123. النسخ الاحتياطي
+
+يجب وجود:
+
+Database Backup
+Configuration Backup
+Audit-safe Recovery
+
+واختبار Restore، وليس مجرد إنشاء Backups دون تجربة استعادتها.
+
+---
+
+124. Disaster Recovery
+
+يجب أن نعرف:
+
+What if database fails?
+What if provider fails?
+What if app crashes?
+What if internet fails?
+What if admin account is compromised?
+What if transaction is duplicated?
+
+لكل حالة Recovery Path واضح.
+
+---
+
+125. قواعد تمنع كسر المنطق
+
+لا يسمح للمطور:
+
+1. تعديل الرصيد مباشرة من واجهة Flutter.
+2. إنشاء Transaction دون Ledger عند الحاجة.
+3. حذف Transaction مكتملة.
+4. تجاوز Permission من الواجهة.
+5. وضع Secret داخل التطبيق.
+6. إنشاء Provider Integration بلا idempotency.
+7. تنفيذ عملية مالية Offline.
+8. اعتبار Push Notification دليلًا على نجاح العملية.
+9. استخدام GPS كحكم وحيد للأهلية.
+10. إضافة وظيفة جديدة دون ربطها بالبيانات والحالات والإدارة والتقارير.
+
+---
+
+126. مبدأ بناء أي خدمة جديدة
+
+أي Feature جديدة تمر بهذا المسار:
+
+Business Rule
+↓
+Data Model
+↓
+Permission
+↓
+API
+↓
+Backend Logic
+↓
+Transaction / State
+↓
+Flutter UI
+↓
+Notifications
+↓
+Admin Control
+↓
+Audit
+↓
+Reports
+↓
+Tests
+
+إذا فقدت خطوة أساسية، فالوظيفة ليست مكتملة.
+
+---
+
+127. Definition of Done
+
+الوظيفة لا تعتبر مكتملة حتى:
+
+UI ✔
+Backend ✔
+Database ✔
+Authorization ✔
+Validation ✔
+Error States ✔
+Loading States ✔
+Success State ✔
+Audit ✔
+Notifications ✔
+Reports ✔
+Admin Control ✔
+Testing ✔
+
+وإذا كانت مالية:
+
+Ledger ✔
+Atomicity ✔
+Idempotency ✔
+Reconciliation ✔
+
+---
+
+128. ترتيب تنفيذ المشروع
+
+Phase 1 — Foundation
+
+- Flutter project.
+- Design system.
+- Architecture.
+- Authentication foundation.
+- Backend foundation.
+- Database.
+- Environment.
+- Logging.
+
+Phase 2 — Identity
+
+- Registration.
+- OTP.
+- Login.
+- PIN.
+- Biometric.
+- Devices.
+- Sessions.
+- User profiles.
+- Region eligibility.
+
+Phase 3 — Wallet Core
+
+- Wallets.
+- Currencies.
+- Balances.
+- Ledger.
+- Transaction engine.
+- Fees.
+- Limits.
+- Idempotency.
+
+Phase 4 — Money Movement
+
+- Transfer.
+- Deposit.
+- Withdrawal.
+- Receipts.
+- Notifications.
+
+Phase 5 — Merchant & Payments
+
+- Merchant.
+- POS.
+- QR.
+- Payments.
+
+Phase 6 — Services
+
+- Topup.
+- Networks.
+- Bills.
+- Network Cards.
+- Other enabled services.
+
+Phase 7 — Savings
+
+- Savings.
+- Goals.
+- Transactions.
+
+Phase 8 — Digital Assets
+
+- Assets.
+- Networks.
+- Deposit/Withdrawal adapters.
+- Risk controls.
+
+Phase 9 — Administration
+
+- Dashboard.
+- Users.
+- KYC.
+- Agents.
+- Merchants.
+- Transactions.
+- Fees.
+- Limits.
+- Regions.
+- Services.
+- Content.
+- Notifications.
+- Versions.
+- Audit.
+- Reports.
+
+Phase 10 — Security & Reconciliation
+
+- Risk.
+- Security Events.
+- Reconciliation.
+- Recovery.
+- Backup/restore.
+- Admin hardening.
+
+Phase 11 — Production Validation
+
+- E2E.
+- Android.
+- iPhone.
+- Security tests.
+- Performance.
+- Failure scenarios.
+- Release builds.
+
+---
+
+129. ترتيب العمل داخل كل Phase
+
+لا يتم بناء كل الشاشات ثم البحث عن Backend.
+
+الترتيب:
+
+Understand Rule
+↓
+Design Data
+↓
+Design State Machine
+↓
+Backend
+↓
+Security / Permission
+↓
+API
+↓
+Repository
+↓
+Use Case
+↓
+UI
+↓
+Integration
+↓
+Tests
+↓
+Admin
+↓
+Reports
+
+---
+
+130. Architecture
+
+Flutter:
+
+Presentation
+↓
+Application / Use Cases
+↓
+Domain
+↓
+Data
+↓
+API / Local Services
+
+Backend:
+
+API
+↓
+Authorization
+↓
+Application Services
+↓
+Domain / Transaction Engine
+↓
+Repositories
+↓
+PostgreSQL / External Providers
+
+لا يتم وضع Business Logic ثقيل داخل Widgets.
+
+---
+
+131. Repository Principle
+
+الواجهة لا تتعامل مباشرة مع قاعدة البيانات.
+
+UI
+↓
+Use Case
+↓
+Repository
+↓
+API
+
+---
+
+132. API Principle
+
+كل API:
+
+Authentication
+Authorization
+Validation
+Idempotency where needed
+Business Rule
+Transaction
+Result
+
+ولا يترك الخادم الحسابات الحساسة للعميل.
+
+---
+
+133. Database Principle
+
+كل علاقة مالية يجب أن تكون Referentially Integrity صحيحة.
+
+لا يوجد:
+
+Transaction بدون User
+Ledger Entry بدون Account
+Payment بدون Transaction
+Fee بدون Transaction
+
+---
+
+134. Migration Principle
+
+أي تعديل في قاعدة البيانات يتم بواسطة Migration versioned.
+
+لا تعدل الإنتاج يدويًا بلا أثر.
+
+---
+
+135. Environment
+
+على الأقل:
+
+Development
+Staging
+Production
+
+ولا تستخدم بيانات Production في Development.
+
+---
+
+136. الإطلاق
+
+قبل Production:
+
+Database Backup
+Monitoring
+Error Tracking
+Admin Access
+Rollback Plan
+Provider Verification
+Security Review
+E2E Test
+Release Build
+
+---
+
+137. Rollback
+
+إذا كان إصدار التطبيق الجديد يحتوي على مشكلة:
+
+Disable affected feature
+↓
+Force-safe state
+↓
+Backend rollback if applicable
+↓
+Release corrective version
+
+ولا يتم التلاعب بالمعاملات المكتملة بسبب مشكلة UI.
+
+---
+
+138. النسخة الأولى التي تعتبر "حقيقية"
+
+MVP هنا لا يعني تطبيقًا ناقصًا.
+
+النسخة الأولى المقبولة يجب أن تحتوي على:
+
+Authentication
+Region Eligibility
+Wallet
+Balance
+Ledger
+Transfer
+Deposit
+Withdrawal
+Fees
+Limits
+Transactions
+Receipts
+Notifications
+Support
+WhatsApp
+Admin
+Audit
+Reports
+System Controls
+
+ثم تضاف الخدمات الاختيارية فوق هذا الأساس.
+
+---
+
+139. قاعدة مهمة جدًا للخدمات الخارجية
+
+إذا لم يوجد Integration حقيقي مع مزود:
+
+لا نبني شاشة توحي بأن الخدمة تعمل.
+
+إما:
+
+Provider Connected → Real Service
+
+أو:
+
+Service Disabled / Coming Later
+
+ولا توجد بيانات وهمية في Production.
+
+---
+
+140. قواعد الإنتاج
+
+Production يمنع:
+
+- Fake money.
+- Mock provider.
+- Test account.
+- Hardcoded balance.
+- Hardcoded admin.
+- Hardcoded fee.
+- Hardcoded region list.
+- Fake success state.
+
+---
+
+141. الإدارة لا تتجاوز النظام المالي
+
+حتى Super Admin لا يعمل:
+
+set balance = X
+
+بل:
+
+Authorized Adjustment
+↓
+Ledger
+↓
+Audit
+
+---
+
+142. التدفق الكلي للمستخدم
+
+Install
+↓
+Register
+↓
+OTP
+↓
+Eligibility
+↓
+KYC if required
+↓
+Wallet
+↓
+Deposit
+↓
+Balance
+↓
+Transfer / Pay / Withdraw / Topup / Bills
+↓
+Transaction
+↓
+Ledger
+↓
+Receipt
+↓
+Notification
+↓
+Statement
+↓
+Support
+↓
+Admin Resolution when needed
+
+هذا هو المسار الرئيسي الذي يجب أن يعمل بدون حلقات ناقصة.
+
+---
+
+143. التدفق الكلي للإدارة
+
+Login
+↓
+Dashboard
+↓
+Monitor System
+↓
+Users
+↓
+KYC
+↓
+Transactions
+↓
+Pending Cases
+↓
+Fees / Limits
+↓
+Regions
+↓
+Agents / Merchants
+↓
+Services / Networks
+↓
+Content
+↓
+Notifications
+↓
+Versions
+↓
+Security
+↓
+Audit
+↓
+Reconciliation
+↓
+Reports
+
+---
+
+144. التدفق الكامل لمشكلة مالية
+
+User Transaction
+↓
+Failure / Complaint
+↓
+Transaction Detail
+↓
+Create Ticket
+↓
+Support Review
+↓
+Transaction Investigation
+↓
+Ledger Check
+↓
+Provider Check
+↓
+Decision
+↓
+Retry / Reverse / Refund / Reject
+↓
+Ledger Adjustment when required
+↓
+Audit
+↓
+Notify User
+↓
+Close Ticket
+
+لا يوجد دعم يعمل منفصلًا عن المعاملات.
+
+---
+
+145. التدفق الكامل للحساب المجمد
+
+Risk / Admin Action
+↓
+Freeze
+↓
+Audit
+↓
+User Notification
+↓
+Restricted UI
+↓
+Support
+↓
+Review
+↓
+Unfreeze / Continue Restriction / Close
+↓
+Audit
+
+---
+
+146. التدفق الكامل لتغيير الرسوم
+
+Admin
+↓
+Select Service
+↓
+Create New Fee Rule
+↓
+Review
+↓
+Publish
+↓
+New Transactions use new rule
+↓
+Old Transactions keep old snapshot
+↓
+Audit
+
+---
+
+147. التدفق الكامل لإيقاف خدمة
+
+Admin
+↓
+Disable Service
+↓
+Backend stops new requests
+↓
+App hides/marks service unavailable
+↓
+Existing pending transactions handled by state policy
+↓
+Notification if required
+↓
+Audit
+
+---
+
+148. التدفق الكامل لإصدار جديد
+
+Build
+↓
+Test
+↓
+Staging
+↓
+Release
+↓
+Set Latest Version
+↓
+Monitor
+↓
+Set Minimum Version if required
+↓
+Force Update if necessary
+
+---
+
+149. المبدأ النهائي للمشروع
+
+أي شيء يظهر للمستخدم يجب أن يكون له:
+
+Data
++
+Backend Logic
++
+State
++
+Permission
++
+Error Handling
++
+Admin Control
++
+Audit where required
++
+Reporting
+
+وأي شيء يظهر للإدارة يجب أن يكون مرتبطًا بالبيانات الحقيقية التي يستخدمها التطبيق.
+
+وأي عملية مالية يجب أن تكون مرتبطة بـ:
+
+Transaction
++
+Ledger
++
+Balance
++
+Fee
++
+Limits
++
+Authorization
++
+Idempotency
++
+Audit
++
+Reconciliation
+
+---
+
+150. معيار اكتمال المشروع
+
+يعتبر محفظة الجنوب جاهزًا وظيفيًا عندما يستطيع المستخدم تنفيذ دورة مالية كاملة مثل:
+
+Create Account
+↓
+Become Eligible
+↓
+Receive Deposit
+↓
+See Balance
+↓
+Send Money
+↓
+Receiver Gets Money
+↓
+Fee Recorded
+↓
+Both Get Notifications
+↓
+Both See Statement
+↓
+Receipt Exists
+↓
+Admin Sees Transaction
+↓
+Ledger Matches
+↓
+Report Includes It
+↓
+Audit Trail Exists
+
+وعندما تستطيع الإدارة:
+
+Find User
+↓
+Inspect Wallet
+↓
+Inspect Transaction
+↓
+Inspect Ledger
+↓
+Change Allowed Policy
+↓
+Control Service
+↓
+Review Security
+↓
+Resolve Support
+↓
+Reconcile Financial Data
+
+وعندما تحدث الحالات غير الطبيعية:
+
+Offline
+Duplicate Request
+Provider Failure
+Pending Transaction
+Frozen Account
+Region Restriction
+Exceeded Limit
+Insufficient Balance
+Security Alert
+Maintenance
+Forced Update
+
+فإنها لا تكسر النظام، بل تنتقل إلى حالة معرّفة ومفهومة وقابلة للمعالجة.
+
+---
+
+151. قاعدة تنفيذ نهائية للـ Coding Agent
+
+قبل كتابة أي كود:
+
+1. اقرأ Master PLAN.md كاملًا.
+2. افهم نموذج المنتج والتدفقات قبل إنشاء الملفات.
+3. أنشئ Architecture وDatabase وState Model قبل بناء الشاشات.
+4. لا تنشئ وظيفة بمعزل عن Backend وAdmin وPermissions وStates.
+5. لا تستبدل Flutter بتقنية أخرى.
+6. لا تستخدم Mock كبديل عن المنطق الحقيقي في Production.
+7. لا تدّعِ أن خدمة خارجية تعمل قبل وجود تكامل حقيقي.
+8. لا تعدل البيانات المالية مباشرة.
+9. نفذ كل مرحلة تدريجيًا.
+10. بعد كل مرحلة شغّل الاختبارات الفعلية.
+11. لا تنتقل إلى المرحلة التالية مع خلل جوهري.
+12. لا تغيّر تصميم Master PLAN.md أو قواعده الجوهرية من نفسك.
+13. أي قرار معماري أو مالي أو أمني غير مغطى يجب إيقاف التنفيذ عنده وطلب قرار قبل تغييره.
+14. كل Commit يجب أن يمثل حالة تعمل.
+15. إذا فشلت محاولتان متتاليتان في إصلاح نفس المشكلة، ارجع إلى آخر حالة مستقرة بدل تراكم إصلاحات عشوائية.
+
+---
+
+152. النتيجة المطلوبة
+
+النتيجة النهائية ليست:
+
+تطبيق فيه شاشات كثيرة
+
+بل:
+
+Financial System
++
+Mobile Client
++
+Admin Control
++
+Transaction Engine
++
+Ledger
++
+Security
++
+KYC
++
+Eligibility
++
+Fees
++
+Limits
++
+Providers
++
+Notifications
++
+Support
++
+Reports
++
+Reconciliation
+
+وجميعها تعمل على مصدر حقيقة واحد وبحالات واضحة، بحيث لا توجد وظيفة "معلقة" تنتظر تنفيذ نصفها في جزء آخر من المشروع.
+
+محفظة الجنوب يجب أن تُبنى كنظام واحد متكامل؛ وليس كتطبيق مستخدم ولوحة إدارة وقاعدة بيانات منفصلة عن بعضها.

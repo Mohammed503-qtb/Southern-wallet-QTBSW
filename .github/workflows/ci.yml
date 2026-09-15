@@ -1,0 +1,57 @@
+# ============================================================
+# محفظة الجنوب — South Wallet | CI (GitHub Actions)
+# بوابة جودة لكل push / pull_request إلى main:
+#   1) lint   : فحص ESLint (bun run lint)
+#   2) build  : بناء إنتاجي standalone كامل (bun run build)
+# لا أسرار ولا متغيرات حساسة — متغير DATABASE_URL وهمي للبناء فقط
+# (لا تُنفَّذ استعلامات أثناء next build — المسارات كلها ديناميكية).
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------- 1) فحص الجودة ----------------
+  lint:
+    name: Lint (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Run lint
+        run: bun run lint
+
+  # ---------------- 2) بوابة البناء الإنتاجي ----------------
+  build:
+    name: Production build (standalone)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      # توليد عميل Prisma قبل البناء — بدون يتكسر استيراد @prisma/client
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Build production bundle
+        env:
+          DATABASE_URL: "file:./ci.db" # وهمي — لا قاعدة بيانات فعلية أثناء البناء
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: bun run build
