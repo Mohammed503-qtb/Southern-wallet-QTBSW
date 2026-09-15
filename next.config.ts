@@ -10,6 +10,9 @@ import type { NextConfig } from "next";
  * مع تضييق كل شيء آخر: لا أصل خارجي، لا object، لا frame-ancestors.
  */
 const isProd = process.env.NODE_ENV === "production";
+// السماح بالتضمين في iframe للبوابات الموثوقة (لوحة معاينة الساندبوكس).
+// الافتراضي دون ضبط: حظر صارم (DENY + frame-ancestors 'none') للنشر الحقيقي.
+const allowFraming = process.env.SW_ALLOW_FRAMING === "1";
 
 const baseHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -22,7 +25,9 @@ const baseHeaders = [
 const prodHeaders = [
   ...baseHeaders,
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-  { key: "X-Frame-Options", value: "DENY" },
+  // حظر التضمين في الإطارات — يُعطّل فقط عند SW_ALLOW_FRAMING=1
+  // (بوابات معاينة/الساندبوكس التي تعرض التطبيق داخل iframe)
+  ...(allowFraming ? [] : [{ key: "X-Frame-Options", value: "DENY" }]),
   {
     key: "Content-Security-Policy",
     value: [
@@ -36,7 +41,7 @@ const prodHeaders = [
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-      "frame-ancestors 'none'",
+      ...(allowFraming ? [] : ["frame-ancestors 'none'"]),
     ].join("; "),
   },
 ];
